@@ -66,10 +66,17 @@ Deno.serve(async (request) => {
 })
 
 async function log(connection: PoolClient, body: IngestBody, status: 'accepted' | 'duplicate' | 'failed', detail: string) {
-  await connection.queryArray`
-    insert into public.automation_runs (workspace_id, workflow_name, source_name, status, detail)
-    values (${body.workspaceId}::uuid, 'n8n-source-ingest', ${body.sourceName}, ${status}, ${detail})
-  `
+  // Run-history is useful but must never turn a successfully saved evidence
+  // record into a failed automation. Existing projects may not yet have the
+  // optional automation_runs migration applied.
+  try {
+    await connection.queryArray`
+      insert into public.automation_runs (workspace_id, workflow_name, source_name, status, detail)
+      values (${body.workspaceId}::uuid, 'n8n-source-ingest', ${body.sourceName}, ${status}, ${detail})
+    `
+  } catch (error) {
+    console.warn('Automation run could not be logged:', error instanceof Error ? error.message : error)
+  }
 }
 
 function reply(data: unknown, status = 200) {
