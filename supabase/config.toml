@@ -1,0 +1,7 @@
+project_id = "wguazpvpelerzoqglyst"
+
+[functions.ai-gateway]
+verify_jwt = true
+
+[functions.automation-ingest]
+verify_jwt = false

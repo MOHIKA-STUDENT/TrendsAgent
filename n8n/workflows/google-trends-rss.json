@@ -1,0 +1,44 @@
+{
+  "name": "TrendsAgent — Google Trends RSS Collector",
+  "nodes": [
+    {
+      "parameters": { "rule": { "interval": [{ "field": "hours", "hoursInterval": 6 }] } },
+      "id": "schedule",
+      "name": "Every 6 hours",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [260, 300]
+    },
+    {
+      "parameters": { "url": "https://trends.google.com/trending/rss?geo=IN", "options": { "response": { "response": { "responseFormat": "text" } } } },
+      "id": "rss",
+      "name": "Fetch Google Trends India RSS",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [480, 300]
+    },
+    {
+      "parameters": { "jsCode": "const xml = $input.first().json.data;\nconst text = (value = '') => value.replace(/<!\\[CDATA\\[([\\s\\S]*?)\\]\\]>/g, '$1').replace(/<[^>]*>/g, '').trim();\nconst pick = (block, tag) => text((block.match(new RegExp(`<${tag}[^>]*>([\\s\\S]*?)<\\/${tag}>`, 'i')) || [])[1] || '');\nreturn [...xml.matchAll(/<item>([\\s\\S]*?)<\\/item>/gi)].slice(0, 10).map((match) => {\n  const item = match[1]; const title = pick(item, 'title'); const link = pick(item, 'link'); const published = pick(item, 'pubDate'); const traffic = pick(item, 'ht:approx_traffic');\n  return { json: { title: `Google Trends: ${title}`, sourceUrl: link, publishedAt: published, sourceName: 'Google Trends RSS', content: `Trending search: ${title}. Approximate traffic: ${traffic || 'not provided'}. Source: Google Trends Trending Now.` } };\n});" },
+      "id": "parse",
+      "name": "Validate and normalize items",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [720, 300]
+    },
+    {
+      "parameters": { "method": "POST", "url": "https://wguazpvpelerzoqglyst.supabase.co/functions/v1/automation-ingest", "sendHeaders": true, "headerParameters": { "parameters": [{ "name": "apikey", "value": "={{ $env.SUPABASE_ANON_KEY }}" }, { "name": "x-automation-secret", "value": "={{ $env.AUTOMATION_INGEST_SECRET }}" }] }, "sendBody": true, "contentType": "json", "jsonBody": "={{ { workspaceId: $env.TARGET_WORKSPACE_ID, title: $json.title, sourceUrl: $json.sourceUrl, publishedAt: $json.publishedAt, content: $json.content, sourceName: $json.sourceName } }}" },
+      "id": "ingest",
+      "name": "Save approved trend evidence",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [970, 300]
+    }
+  ],
+  "connections": {
+    "Every 6 hours": { "main": [[{ "node": "Fetch Google Trends India RSS", "type": "main", "index": 0 }]] },
+    "Fetch Google Trends India RSS": { "main": [[{ "node": "Validate and normalize items", "type": "main", "index": 0 }]] },
+    "Validate and normalize items": { "main": [[{ "node": "Save approved trend evidence", "type": "main", "index": 0 }]] }
+  },
+  "active": false,
+  "settings": { "executionOrder": "v1" }
+}

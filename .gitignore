@@ -1,0 +1,10 @@
+node_modules
+dist
+.env
+.env.*
+!.env.example
+*.local
+n8n/.env
+!.env.example
+supabase/.temp/
+.DS_Store
