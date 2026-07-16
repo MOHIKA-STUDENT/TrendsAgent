@@ -20,6 +20,20 @@ function unwrapBody(payload: unknown): Record<string, unknown> {
   return candidate && typeof candidate === 'object' ? candidate as Record<string, unknown> : {}
 }
 
+function getServerDatabaseKey() {
+  // Current Supabase projects expose secret keys as a JSON map. Prefer this
+  // built-in server-only value so a custom/incorrect legacy key cannot make
+  // this automation behave like an anonymous browser client.
+  const modernKeys = Deno.env.get('SUPABASE_SECRET_KEYS')
+  if (modernKeys) {
+    try {
+      const parsed = JSON.parse(modernKeys) as Record<string, unknown>
+      if (typeof parsed.default === 'string' && parsed.default) return parsed.default
+    } catch { /* fall through to the legacy hosted variable */ }
+  }
+  return Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
+}
+
 Deno.serve(async (request) => {
   if (request.method !== 'POST') return reply({ error: 'Method not allowed' }, 405)
   if (request.headers.get('x-automation-secret') !== Deno.env.get('AUTOMATION_INGEST_SECRET')) return reply({ error: 'Invalid automation secret' }, 401)
@@ -43,7 +57,7 @@ Deno.serve(async (request) => {
   if (missing.length) return reply({ error: 'Invalid or incomplete source record', missing }, 400)
 
   const supabaseUrl = Deno.env.get('SUPABASE_URL')
-  const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
+  const serviceRoleKey = getServerDatabaseKey()
   if (!supabaseUrl || !serviceRoleKey) return reply({ error: 'Server database credential is unavailable. Check the hosted Edge Function configuration.' }, 500)
   const database = createClient(supabaseUrl, serviceRoleKey)
   const { data: workspace, error: workspaceError } = await database.from('workspaces').select('id').eq('id', body.workspaceId).maybeSingle()
