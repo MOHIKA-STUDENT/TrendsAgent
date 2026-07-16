@@ -3,13 +3,37 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 type IngestBody = { workspaceId: string; title: string; sourceUrl: string; publishedAt?: string; content: string; sourceName: string }
 
+function asText(value: unknown) {
+  return typeof value === 'string' ? value.trim() : ''
+}
+
+function unwrapBody(payload: unknown): Record<string, unknown> {
+  let candidate = payload
+  // The n8n HTTP Request node can send either an object under `body` or a
+  // JSON string under `body`, depending on the node's "Specify body" option.
+  if (candidate && typeof candidate === 'object' && 'body' in candidate) {
+    candidate = (candidate as { body?: unknown }).body
+  }
+  if (typeof candidate === 'string') {
+    try { candidate = JSON.parse(candidate) } catch { return {} }
+  }
+  return candidate && typeof candidate === 'object' ? candidate as Record<string, unknown> : {}
+}
+
 Deno.serve(async (request) => {
   if (request.method !== 'POST') return reply({ error: 'Method not allowed' }, 405)
   if (request.headers.get('x-automation-secret') !== Deno.env.get('AUTOMATION_INGEST_SECRET')) return reply({ error: 'Invalid automation secret' }, 401)
-  let payload: IngestBody | { body?: IngestBody }
+  let payload: unknown
   try { payload = await request.json() } catch { return reply({ error: 'Request must be JSON' }, 400) }
-  // n8n's HTTP Request node may wrap JSON fields under `body`.
-  const body = 'body' in payload && payload.body ? payload.body : payload as IngestBody
+  const raw = unwrapBody(payload)
+  const body: IngestBody = {
+    workspaceId: asText(raw.workspaceId),
+    title: asText(raw.title),
+    sourceUrl: asText(raw.sourceUrl),
+    publishedAt: asText(raw.publishedAt) || undefined,
+    content: asText(raw.content),
+    sourceName: asText(raw.sourceName),
+  }
   const missing: string[] = []
   if (!body.workspaceId) missing.push('workspaceId')
   if (!body.title?.trim()) missing.push('title')
