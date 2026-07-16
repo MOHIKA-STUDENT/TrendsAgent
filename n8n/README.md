@@ -51,6 +51,17 @@ docker compose down
 docker compose up -d
 ```
 
+**Do not change `N8N_ENCRYPTION_KEY` after n8n has first started.** n8n uses it to decrypt its saved workflows and settings. If you change it later, n8n will enter a restart loop with “Mismatching encryption keys.” For a local setup that already has saved data, remove the changed `N8N_ENCRYPTION_KEY` line from `n8n/.env` and restart n8n so it uses its existing stored settings.
+
+## Troubleshooting
+
+| Symptom | Meaning and fix |
+| --- | --- |
+| `no configuration file provided` | You ran Docker from the wrong folder. Run `cd n8n` first, then run `docker compose ...`. |
+| n8n is `Restarting (1)` | Run `docker compose logs --tail 100 n8n`. If it says “Mismatching encryption keys,” follow the encryption-key note above. |
+| Upload node shows `undefined/functions/...` | Open the node, set its URL to `https://wguazpvpelerzoqglyst.supabase.co/functions/v1/automation-ingest`, save, and run again. |
+| Workflow final node is red | Click the red node and copy its response/error. The first three green nodes only mean the RSS feed was fetched; the final node must be green before evidence reaches TrendsAgent. |
+
 Open `http://localhost:5678`, create the n8n owner account, then import `workflows/google-trends-rss.json`.
 
 ## Test before activating
