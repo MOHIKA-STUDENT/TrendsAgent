@@ -42,9 +42,21 @@ Deno.serve(async (request) => {
   if (!body.sourceName?.trim()) missing.push('sourceName')
   if (missing.length) return reply({ error: 'Invalid or incomplete source record', missing }, 400)
 
-  const database = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!)
-  const { data: workspace } = await database.from('workspaces').select('id').eq('id', body.workspaceId).maybeSingle()
-  if (!workspace) return reply({ error: 'Workspace does not exist' }, 404)
+  const supabaseUrl = Deno.env.get('SUPABASE_URL')
+  const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
+  if (!supabaseUrl || !serviceRoleKey) return reply({ error: 'Server database credential is unavailable. Check the hosted Edge Function configuration.' }, 500)
+  const database = createClient(supabaseUrl, serviceRoleKey)
+  const { data: workspace, error: workspaceError } = await database.from('workspaces').select('id').eq('id', body.workspaceId).maybeSingle()
+  if (workspaceError) return reply({ error: 'Could not validate workspace', detail: workspaceError.message }, 500)
+  if (!workspace) {
+    const { count, error: countError } = await database.from('workspaces').select('id', { count: 'exact', head: true })
+    return reply({
+      error: 'Workspace does not exist',
+      workspaceIdReceived: body.workspaceId,
+      accessibleWorkspaceCount: countError ? null : count,
+      hint: count ? 'Use the exact ID from this project’s workspaces table.' : 'The automation function cannot see any workspace records. Check that the app workspace was created in this Supabase project.',
+    }, 404)
+  }
 
   const { data: existing, error: lookupError } = await database.from('source_documents').select('id').eq('workspace_id', body.workspaceId).eq('source_url', body.sourceUrl).maybeSingle()
   if (lookupError) return reply({ error: 'Could not check source duplicates' }, 500)
