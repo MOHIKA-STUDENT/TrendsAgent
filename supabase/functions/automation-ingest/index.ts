@@ -6,9 +6,17 @@ type IngestBody = { workspaceId: string; title: string; sourceUrl: string; publi
 Deno.serve(async (request) => {
   if (request.method !== 'POST') return reply({ error: 'Method not allowed' }, 405)
   if (request.headers.get('x-automation-secret') !== Deno.env.get('AUTOMATION_INGEST_SECRET')) return reply({ error: 'Invalid automation secret' }, 401)
-  let body: IngestBody
-  try { body = await request.json() } catch { return reply({ error: 'Request must be JSON' }, 400) }
-  if (!body.workspaceId || !body.title?.trim() || !body.sourceUrl?.startsWith('http') || !body.content?.trim() || body.content.length < 30 || !body.sourceName?.trim()) return reply({ error: 'Invalid or incomplete source record' }, 400)
+  let payload: IngestBody | { body?: IngestBody }
+  try { payload = await request.json() } catch { return reply({ error: 'Request must be JSON' }, 400) }
+  // n8n's HTTP Request node may wrap JSON fields under `body`.
+  const body = 'body' in payload && payload.body ? payload.body : payload as IngestBody
+  const missing: string[] = []
+  if (!body.workspaceId) missing.push('workspaceId')
+  if (!body.title?.trim()) missing.push('title')
+  if (!body.sourceUrl?.startsWith('http')) missing.push('sourceUrl (must start with http)')
+  if (!body.content?.trim() || body.content.length < 30) missing.push('content (at least 30 characters)')
+  if (!body.sourceName?.trim()) missing.push('sourceName')
+  if (missing.length) return reply({ error: 'Invalid or incomplete source record', missing }, 400)
 
   const database = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!)
   const { data: workspace } = await database.from('workspaces').select('id').eq('id', body.workspaceId).maybeSingle()

@@ -30,6 +30,19 @@ n8n source collector → secure ingestion function → Evidence Library
 - n8n + Docker for scheduled source collection
 - OpenRouter-compatible server-side AI gateway
 
+## Development phases
+
+| Phase | Purpose | Status |
+| --- | --- | --- |
+| 0–1 | Product definition, interface, and local React foundation | Complete |
+| 2–3 | Supabase connection, authentication, workspaces, and data isolation | Complete |
+| 4–5 | Business profile, competitors, evidence records, and saved drafts | Complete |
+| 6 | Server-side AI gateway with evidence-only guardrails and audit logs | Foundation complete |
+| 7 | Evidence Library with user-controlled source deletion | Complete |
+| 8 | n8n scheduled collector and secure source-ingestion function | In validation |
+| 9 | Dashboard trend signals, reports, and evidence-backed analysis UI | Next |
+| 10–12 | Source integrations, automated testing, monitoring, and production deployment | Planned |
+
 ## Run locally
 
 ```powershell
@@ -53,6 +66,18 @@ docker compose up -d
 ```
 
 Open `http://localhost:5678` to use n8n. See [n8n/README.md](n8n/README.md) for its secure setup and testing steps.
+
+## Use this project for your own workspace
+
+1. Fork or clone the repository.
+2. Create your own Supabase project; do not reuse another team’s credentials.
+3. Copy `.env.example` to `.env` and add only your project URL and public anon key.
+4. Run the SQL migrations in `supabase/migrations/` in order.
+5. Deploy the Edge Functions and configure their server-side secrets in Supabase Dashboard.
+6. Set up a separate `n8n/.env` and import the workflow only after configuring your own workspace ID and automation secret.
+7. Start with one approved source, manually test it, and review the Evidence Library before enabling a schedule.
+
+Every team member should have their own local `.env` files. Never copy a teammate’s secret files into GitHub or chat.
 
 ## Repository guides
 
