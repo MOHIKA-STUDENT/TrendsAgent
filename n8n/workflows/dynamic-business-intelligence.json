@@ -1,0 +1,108 @@
+{
+  "name": "TrendsAgent — Dynamic Business Intelligence Collector",
+  "nodes": [
+    {
+      "parameters": { "rule": { "interval": [{ "field": "hours", "hoursInterval": 12 }] } },
+      "id": "schedule",
+      "name": "Every 12 hours",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            { "id": "workspace", "name": "workspaceId", "value": "REPLACE_WITH_YOUR_WORKSPACE_ID", "type": "string" },
+            { "id": "youtubeKey", "name": "youtubeApiKey", "value": "REPLACE_WITH_YOUR_YOUTUBE_API_KEY", "type": "string" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "configuration",
+      "name": "Set Workspace Credentials",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [450, 300]
+    },
+    {
+      "parameters": {
+        "url": "={{ 'https://wguazpvpelerzoqglyst.supabase.co/rest/v1/business_profiles?workspace_id=eq.' + $json.workspaceId + '&select=business_name,industry,description,target_audience' }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "REPLACE_WITH_YOUR_SUPABASE_ANON_KEY" },
+            { "name": "Authorization", "value": "={{ 'Bearer ' + $json.SUPABASE_ANON_KEY }}" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "fetch_profile",
+      "name": "Fetch Business Profile from Supabase",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const profile = $input.first().json[0] || {};\nconst config = $('Set Workspace Credentials').first().json;\nconst query = profile.industry || profile.business_name || 'Business Trends';\nreturn [{ json: { ...config, businessName: profile.business_name || 'My Business', industry: profile.industry || 'General Industry', researchQuery: query } }];"
+      },
+      "id": "extract_query",
+      "name": "Extract Industry & Keywords Dynamically",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [920, 300]
+    },
+    {
+      "parameters": {
+        "url": "={{ 'https://api.gdeltproject.org/api/v2/doc/doc?query=' + encodeURIComponent($json.researchQuery) + '&mode=artlist&format=json&maxrecords=8&sort=HybridRel' }}",
+        "options": {}
+      },
+      "id": "fetch_news",
+      "name": "Fetch News for Business Industry",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1160, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const config = $('Extract Industry & Keywords Dynamically').first().json;\nconst articles = $input.first().json.articles || [];\nreturn articles.slice(0, 5).map((art) => ({\n  json: {\n    workspaceId: config.workspaceId,\n    title: `Industry News: ${art.title}`,\n    sourceUrl: art.url,\n    publishedAt: art.seendate ? `${art.seendate.slice(0,4)}-${art.seendate.slice(4,6)}-${art.seendate.slice(6,8)}T00:00:00Z` : new Date().toISOString(),\n    sourceName: 'GDELT Industry News',\n    sourceType: 'report',\n    content: `Industry news for '${config.businessName}' (${config.industry}). Title: ${art.title}. Source domain: ${art.domain || 'Unknown'}. URL: ${art.url}`\n  }\n}));"
+      },
+      "id": "normalize_news",
+      "name": "Normalize Business News",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1400, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://wguazpvpelerzoqglyst.supabase.co/functions/v1/automation-ingest",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "x-automation-secret", "value": "REPLACE_WITH_YOUR_AUTOMATION_INGEST_SECRET" }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "jsonBody": "={{ { workspaceId: $json.workspaceId, title: $json.title, sourceUrl: $json.sourceUrl, publishedAt: $json.publishedAt, content: $json.content, sourceName: $json.sourceName, sourceType: $json.sourceType } }}"
+      },
+      "id": "ingest",
+      "name": "Save Business News Evidence",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1640, 300]
+    }
+  ],
+  "connections": {
+    "Every 12 hours": { "main": [[{ "node": "Set Workspace Credentials", "type": "main", "index": 0 }]] },
+    "Set Workspace Credentials": { "main": [[{ "node": "Fetch Business Profile from Supabase", "type": "main", "index": 0 }]] },
+    "Fetch Business Profile from Supabase": { "main": [[{ "node": "Extract Industry & Keywords Dynamically", "type": "main", "index": 0 }]] },
+    "Extract Industry & Keywords Dynamically": { "main": [[{ "node": "Fetch News for Business Industry", "type": "main", "index": 0 }]] },
+    "Fetch News for Business Industry": { "main": [[{ "node": "Normalize Business News", "type": "main", "index": 0 }]] },
+    "Normalize Business News": { "main": [[{ "node": "Save Business News Evidence", "type": "main", "index": 0 }]] }
+  },
+  "active": false,
+  "settings": { "executionOrder": "v1" }
+}
