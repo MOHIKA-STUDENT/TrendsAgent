@@ -1,5 +1,5 @@
 {
-  "name": "TrendsAgent OS — Fully Automated Master Collector (Zero Manual Queries)",
+  "name": "TrendsAgent OS — Fully Automated Master Collector (Dedicated Ingest Edition)",
   "nodes": [
     {
       "parameters": { "rule": { "interval": [{ "field": "hours", "hoursInterval": 12 }] } },
@@ -75,13 +75,34 @@
     },
     {
       "parameters": {
-        "jsCode": "const xml = $input.first()?.json?.data || '';\nconst config = $('Auto-Extract Industry Topic').first()?.json || {};\nconst text = (v = '') => String(v).replace(/<!\\[CDATA\\[([\\s\\S]*?)\\]\\]>/g, '$1').replace(/<[^>]*>/g, '').trim();\nconst pick = (block, tag) => text((block.match(new RegExp(`<${tag}[^>]*>([\\s\\S]*?)<\\/${tag}>`, 'i')) || [])[1] || '');\nconst matches = [...xml.matchAll(/<item>([\\s\\S]*?)<\\/item>/gi)].slice(0, 5);\nconst items = matches.map((m) => {\n  const item = m[1]; const title = pick(item, 'title'); const pub = pick(item, 'pubDate'); const traffic = pick(item, 'ht:approx_traffic');\n  if (!title) return null;\n  return {\n    json: {\n      workspaceId: config.workspaceId,\n      title: `Google Trends: ${title}`,\n      sourceUrl: `https://trends.google.com/trends/explore?q=${encodeURIComponent(title)}`,\n      publishedAt: pub ? new Date(pub).toISOString() : new Date().toISOString(),\n      sourceName: 'Google Trends RSS',\n      sourceType: 'trend',\n      content: `Outside viral market trend: ${title}. Approximate search traffic: ${traffic || 'Not specified'}. Public signal.`,\n      automationSecret: config.automationSecret\n    }\n  };\n}).filter(Boolean);\nreturn items.length ? items : [];"
+        "jsCode": "const xml = $input.first()?.json?.data || '';\nconst config = $('Auto-Extract Industry Topic').first()?.json || {};\nconst text = (v = '') => String(v).replace(/<!\\[CDATA\\[([\\s\\S]*?)\\]\\]>/g, '$1').replace(/<[^>]*>/g, '').trim();\nconst pick = (block, tag) => text((block.match(new RegExp(`<${tag}[^>]*>([\\s\\S]*?)<\\/${tag}>`, 'i')) || [])[1] || '');\nconst matches = [...xml.matchAll(/<item>([\\s\\S]*?)<\\/item>/gi)].slice(0, 5);\nreturn matches.map((m) => {\n  const item = m[1]; const title = pick(item, 'title'); const pub = pick(item, 'pubDate'); const traffic = pick(item, 'ht:approx_traffic');\n  if (!title) return null;\n  return {\n    json: {\n      workspaceId: config.workspaceId,\n      title: `Google Trends: ${title}`,\n      sourceUrl: `https://trends.google.com/trends/explore?q=${encodeURIComponent(title)}`,\n      publishedAt: pub ? new Date(pub).toISOString() : new Date().toISOString(),\n      sourceName: 'Google Trends RSS',\n      sourceType: 'trend',\n      content: `Outside viral market trend: ${title}. Approximate search traffic: ${traffic || 'Not specified'}. Public signal.`,\n      automationSecret: config.automationSecret\n    }\n  };\n}).filter(Boolean);"
       },
       "id": "parse_google_trends",
       "name": "Normalize Outside Trends",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [1400, 100]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://wguazpvpelerzoqglyst.supabase.co/functions/v1/automation-ingest",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "x-automation-secret", "value": "={{ $json.automationSecret }}" }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "jsonBody": "={{ { workspaceId: $json.workspaceId, title: $json.title, sourceUrl: $json.sourceUrl, publishedAt: $json.publishedAt, content: $json.content, sourceName: $json.sourceName, sourceType: $json.sourceType } }}"
+      },
+      "id": "ingest_trends",
+      "name": "Save Google Trends Evidence",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1650, 100],
+      "onError": "continueRegularOutput"
     },
     {
       "parameters": {
@@ -99,13 +120,34 @@
     },
     {
       "parameters": {
-        "jsCode": "const config = $('Auto-Extract Industry Topic').first()?.json || {};\nconst rawItems = $input.first()?.json?.items || [];\nconst items = rawItems.map((item) => {\n  const s = item.snippet || {};\n  const vId = item.id?.videoId || '';\n  const title = s.title || '';\n  if (!title || !vId) return null;\n  return {\n    json: {\n      workspaceId: config.workspaceId,\n      title: `YouTube Video: ${title}`,\n      sourceUrl: `https://www.youtube.com/watch?v=${vId}`,\n      publishedAt: s.publishedAt || new Date().toISOString(),\n      sourceName: 'YouTube Data API',\n      sourceType: 'report',\n      content: `YouTube video content for industry '${config.industry}'. Title: ${title}. Channel: ${s.channelTitle || 'Unknown'}. Description: ${s.description || 'N/A'}`,\n      automationSecret: config.automationSecret\n    }\n  };\n}).filter(Boolean);\nreturn items.length ? items : [];"
+        "jsCode": "const config = $('Auto-Extract Industry Topic').first()?.json || {};\nconst rawItems = $input.first()?.json?.items || [];\nreturn rawItems.map((item) => {\n  const s = item.snippet || {};\n  const vId = item.id?.videoId || '';\n  const title = s.title || '';\n  if (!title || !vId) return null;\n  return {\n    json: {\n      workspaceId: config.workspaceId,\n      title: `YouTube Video: ${title}`,\n      sourceUrl: `https://www.youtube.com/watch?v=${vId}`,\n      publishedAt: s.publishedAt || new Date().toISOString(),\n      sourceName: 'YouTube Data API',\n      sourceType: 'report',\n      content: `YouTube video content for industry '${config.industry}'. Title: ${title}. Channel: ${s.channelTitle || 'Unknown'}. Description: ${s.description || 'N/A'}`,\n      automationSecret: config.automationSecret\n    }\n  };\n}).filter(Boolean);"
       },
       "id": "parse_youtube",
       "name": "Normalize YouTube Videos",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [1400, 260]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://wguazpvpelerzoqglyst.supabase.co/functions/v1/automation-ingest",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "x-automation-secret", "value": "={{ $json.automationSecret }}" }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "jsonBody": "={{ { workspaceId: $json.workspaceId, title: $json.title, sourceUrl: $json.sourceUrl, publishedAt: $json.publishedAt, content: $json.content, sourceName: $json.sourceName, sourceType: $json.sourceType } }}"
+      },
+      "id": "ingest_youtube",
+      "name": "Save YouTube Evidence",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1650, 260],
+      "onError": "continueRegularOutput"
     },
     {
       "parameters": {
@@ -124,13 +166,34 @@
     },
     {
       "parameters": {
-        "jsCode": "const xml = $input.first()?.json?.data || '';\nconst config = $('Auto-Extract Industry Topic').first()?.json || {};\nconst text = (v = '') => String(v).replace(/<!\\[CDATA\\[([\\s\\S]*?)\\]\\]>/g, '$1').replace(/<[^>]*>/g, '').trim();\nconst pick = (block, tag) => text((block.match(new RegExp(`<${tag}[^>]*>([\\s\\S]*?)<\\/${tag}>`, 'i')) || [])[1] || '');\nconst matches = [...xml.matchAll(/<item>([\\s\\S]*?)<\\/item>/gi)].slice(0, 5);\nconst items = matches.map((m) => {\n  const item = m[1]; const title = pick(item, 'title'); const link = pick(item, 'link'); const pub = pick(item, 'pubDate'); const source = pick(item, 'source');\n  if (!title || !link) return null;\n  return {\n    json: {\n      workspaceId: config.workspaceId,\n      title: `Industry News: ${title}`,\n      sourceUrl: link,\n      publishedAt: pub ? new Date(pub).toISOString() : new Date().toISOString(),\n      sourceName: source || 'Google News',\n      sourceType: 'report',\n      content: `Breaking industry news for '${config.businessName}' (${config.industry}). Headline: ${title}. Media outlet: ${source || 'Google News'}. Article link: ${link}`,\n      automationSecret: config.automationSecret\n    }\n  };\n}).filter(Boolean);\nreturn items.length ? items : [];"
+        "jsCode": "const xml = $input.first()?.json?.data || '';\nconst config = $('Auto-Extract Industry Topic').first()?.json || {};\nconst text = (v = '') => String(v).replace(/<!\\[CDATA\\[([\\s\\S]*?)\\]\\]>/g, '$1').replace(/<[^>]*>/g, '').trim();\nconst pick = (block, tag) => text((block.match(new RegExp(`<${tag}[^>]*>([\\s\\S]*?)<\\/${tag}>`, 'i')) || [])[1] || '');\nconst matches = [...xml.matchAll(/<item>([\\s\\S]*?)<\\/item>/gi)].slice(0, 5);\nreturn matches.map((m) => {\n  const item = m[1]; const title = pick(item, 'title'); const link = pick(item, 'link'); const pub = pick(item, 'pubDate'); const source = pick(item, 'source');\n  if (!title || !link) return null;\n  return {\n    json: {\n      workspaceId: config.workspaceId,\n      title: `Industry News: ${title}`,\n      sourceUrl: link,\n      publishedAt: pub ? new Date(pub).toISOString() : new Date().toISOString(),\n      sourceName: source || 'Google News',\n      sourceType: 'report',\n      content: `Breaking industry news for '${config.businessName}' (${config.industry}). Headline: ${title}. Media outlet: ${source || 'Google News'}. Article link: ${link}`,\n      automationSecret: config.automationSecret\n    }\n  };\n}).filter(Boolean);"
       },
       "id": "parse_gdelt",
       "name": "Normalize Industry News",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [1400, 420]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://wguazpvpelerzoqglyst.supabase.co/functions/v1/automation-ingest",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "x-automation-secret", "value": "={{ $json.automationSecret }}" }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "jsonBody": "={{ { workspaceId: $json.workspaceId, title: $json.title, sourceUrl: $json.sourceUrl, publishedAt: $json.publishedAt, content: $json.content, sourceName: $json.sourceName, sourceType: $json.sourceType } }}"
+      },
+      "id": "ingest_news",
+      "name": "Save News Evidence",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1650, 420],
+      "onError": "continueRegularOutput"
     },
     {
       "parameters": {
@@ -176,11 +239,11 @@
         "contentType": "json",
         "jsonBody": "={{ { workspaceId: $json.workspaceId, title: $json.title, sourceUrl: $json.sourceUrl, publishedAt: $json.publishedAt, content: $json.content, sourceName: $json.sourceName, sourceType: $json.sourceType } }}"
       },
-      "id": "ingest_all",
-      "name": "3. Ingest Evidence to TrendsAgent OS",
+      "id": "ingest_wikimedia",
+      "name": "Save Wikimedia Evidence",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1650, 340],
+      "position": [1650, 580],
       "onError": "continueRegularOutput"
     }
   ],
@@ -199,13 +262,13 @@
       ]
     },
     "2A. Fetch Outside Viral Trends (Google RSS)": { "main": [[{ "node": "Normalize Outside Trends", "type": "main", "index": 0 }]] },
-    "Normalize Outside Trends": { "main": [[{ "node": "3. Ingest Evidence to TrendsAgent OS", "type": "main", "index": 0 }]] },
+    "Normalize Outside Trends": { "main": [[{ "node": "Save Google Trends Evidence", "type": "main", "index": 0 }]] },
     "2B. Fetch Industry YouTube Videos": { "main": [[{ "node": "Normalize YouTube Videos", "type": "main", "index": 0 }]] },
-    "Normalize YouTube Videos": { "main": [[{ "node": "3. Ingest Evidence to TrendsAgent OS", "type": "main", "index": 0 }]] },
+    "Normalize YouTube Videos": { "main": [[{ "node": "Save YouTube Evidence", "type": "main", "index": 0 }]] },
     "2C. Fetch Industry News": { "main": [[{ "node": "Normalize Industry News", "type": "main", "index": 0 }]] },
-    "Normalize Industry News": { "main": [[{ "node": "3. Ingest Evidence to TrendsAgent OS", "type": "main", "index": 0 }]] },
+    "Normalize Industry News": { "main": [[{ "node": "Save News Evidence", "type": "main", "index": 0 }]] },
     "2D. Fetch Wikimedia Attention": { "main": [[{ "node": "Normalize Wikimedia Attention", "type": "main", "index": 0 }]] },
-    "Normalize Wikimedia Attention": { "main": [[{ "node": "3. Ingest Evidence to TrendsAgent OS", "type": "main", "index": 0 }]] }
+    "Normalize Wikimedia Attention": { "main": [[{ "node": "Save Wikimedia Evidence", "type": "main", "index": 0 }]] }
   },
   "active": false,
   "settings": { "executionOrder": "v1" }
