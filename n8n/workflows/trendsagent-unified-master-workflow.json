@@ -109,9 +109,10 @@
     },
     {
       "parameters": {
-        "url": "={{ 'https://api.gdeltproject.org/api/v2/doc/doc?query=' + encodeURIComponent($json.autoQuery) + '&mode=artlist&format=json&maxrecords=5&sort=HybridRel' }}",
+        "url": "={{ 'https://news.google.com/rss/search?q=' + encodeURIComponent($json.autoQuery) + '&hl=en-IN&gl=IN&ceid=IN:en' }}",
         "options": {
-          "retry": { "retry": { "maxTries": 3, "waitBetweenTries": 5000 } }
+          "response": { "response": { "responseFormat": "text" } },
+          "retry": { "retry": { "maxTries": 3, "waitBetweenTries": 2000 } }
         }
       },
       "id": "fetch_gdelt",
@@ -123,7 +124,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const config = $('Auto-Extract Industry Topic').first()?.json || {};\nconst articles = $input.first()?.json?.articles || [];\nconst items = articles.slice(0, 5).map((art) => ({\n  json: {\n    workspaceId: config.workspaceId,\n    title: `GDELT News: ${art.title}`,\n    sourceUrl: art.url,\n    publishedAt: art.seendate ? `${art.seendate.slice(0,4)}-${art.seendate.slice(4,6)}-${art.seendate.slice(6,8)}T00:00:00Z` : new Date().toISOString(),\n    sourceName: 'GDELT DOC API',\n    sourceType: 'report',\n    content: `Industry news for '${config.businessName}' (${config.industry}). Title: ${art.title}. Domain: ${art.domain || 'Unknown'}. URL: ${art.url}`,\n    automationSecret: config.automationSecret\n  }\n})).filter((item) => item.json.title && item.json.sourceUrl && item.json.sourceUrl.startsWith('http'));\nreturn items.length ? items : [];"
+        "jsCode": "const xml = $input.first()?.json?.data || '';\nconst config = $('Auto-Extract Industry Topic').first()?.json || {};\nconst text = (v = '') => String(v).replace(/<!\\[CDATA\\[([\\s\\S]*?)\\]\\]>/g, '$1').replace(/<[^>]*>/g, '').trim();\nconst pick = (block, tag) => text((block.match(new RegExp(`<${tag}[^>]*>([\\s\\S]*?)<\\/${tag}>`, 'i')) || [])[1] || '');\nconst matches = [...xml.matchAll(/<item>([\\s\\S]*?)<\\/item>/gi)].slice(0, 5);\nconst items = matches.map((m) => {\n  const item = m[1]; const title = pick(item, 'title'); const link = pick(item, 'link'); const pub = pick(item, 'pubDate'); const source = pick(item, 'source');\n  if (!title || !link) return null;\n  return {\n    json: {\n      workspaceId: config.workspaceId,\n      title: `Industry News: ${title}`,\n      sourceUrl: link,\n      publishedAt: pub ? new Date(pub).toISOString() : new Date().toISOString(),\n      sourceName: source || 'Google News',\n      sourceType: 'report',\n      content: `Breaking industry news for '${config.businessName}' (${config.industry}). Headline: ${title}. Media outlet: ${source || 'Google News'}. Article link: ${link}`,\n      automationSecret: config.automationSecret\n    }\n  };\n}).filter(Boolean);\nreturn items.length ? items : [];"
       },
       "id": "parse_gdelt",
       "name": "Normalize Industry News",
