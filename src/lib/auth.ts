@@ -49,3 +49,9 @@ export async function createWorkspace(name: string): Promise<Workspace> {
   }
   return data as Workspace
 }
+
+export async function deleteWorkspace(workspaceId: string) {
+  const { error } = await client().from('workspaces').delete().eq('id', workspaceId)
+  if (error) throw error
+}
+

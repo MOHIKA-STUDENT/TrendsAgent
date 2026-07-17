@@ -20,3 +20,10 @@ export async function deleteSource(workspace: Workspace, sourceId: string) {
   const { error } = await client().from('source_documents').delete().eq('workspace_id', workspace.id).eq('id', sourceId)
   if (error) throw error
 }
+
+export async function deleteMultipleSources(workspace: Workspace, sourceIds: string[]) {
+  if (!sourceIds.length) return
+  const { error } = await client().from('source_documents').delete().eq('workspace_id', workspace.id).in('id', sourceIds)
+  if (error) throw error
+}
+
