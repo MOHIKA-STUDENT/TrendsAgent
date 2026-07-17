@@ -30,7 +30,7 @@ export async function signOut() {
 
 export async function getWorkspaces(user: User): Promise<Workspace[]> {
   void user
-  const { data, error } = await client().from('workspaces').select('id, name, slug').order('created_at')
+  const { data, error } = await client().from('workspaces').select('id, name, slug').order('created_at', { ascending: false })
   if (error) throw error
   return data
 }

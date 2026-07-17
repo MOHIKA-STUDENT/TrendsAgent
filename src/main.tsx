@@ -14,20 +14,22 @@ type NavItem = { label: string; icon: typeof LayoutDashboard }
 const navItems: NavItem[] = [{ label: 'Overview', icon: LayoutDashboard }, { label: 'Trend intelligence', icon: TrendingUp }, { label: 'Competitors', icon: Users }, { label: 'Recommendations', icon: Sparkles }, { label: 'Reports', icon: FileText }, { label: 'Knowledge base', icon: BookOpen }]
 
 function App() {
-  const [user, setUser] = useState<User | null>(null); const [loading, setLoading] = useState(true); const [workspaces, setWorkspaces] = useState<Workspace[]>([]); const [profile, setProfile] = useState<BusinessProfile | null | undefined>(undefined)
+  const [user, setUser] = useState<User | null>(null); const [loading, setLoading] = useState(true); const [workspaces, setWorkspaces] = useState<Workspace[]>([]); const [activeWorkspaceIndex, setActiveWorkspaceIndex] = useState(0); const [profile, setProfile] = useState<BusinessProfile | null | undefined>(undefined)
   useEffect(() => { if (!supabase) { setLoading(false); return }; void supabase.auth.getSession().then(({ data }) => { setUser(data.session?.user ?? null); setLoading(false) }); const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => setUser(session?.user ?? null)); return () => listener.subscription.unsubscribe() }, [])
-  useEffect(() => { if (user) void getWorkspaces(user).then(setWorkspaces).catch(() => setWorkspaces([])); else { setWorkspaces([]); setProfile(undefined) } }, [user])
-  useEffect(() => { if (workspaces[0]) void getBusinessProfile(workspaces[0].id).then(setProfile).catch(() => setProfile(null)) }, [workspaces])
+  useEffect(() => { if (user) void getWorkspaces(user).then((ws) => { setWorkspaces(ws); setActiveWorkspaceIndex(0) }).catch(() => setWorkspaces([])); else { setWorkspaces([]); setProfile(undefined) } }, [user])
+  
+  const currentWorkspace = workspaces[activeWorkspaceIndex] || workspaces[0]
+  useEffect(() => { if (currentWorkspace) void getBusinessProfile(currentWorkspace.id).then(setProfile).catch(() => setProfile(null)) }, [currentWorkspace])
   if (loading) return <Loading label="Loading your secure workspace…" />
   if (!user) return <AuthScreen />
   if (workspaces.length === 0) return <WorkspaceSetup user={user} onCreated={(workspace) => setWorkspaces([workspace])} />
   if (profile === undefined) return <Loading label="Preparing your business profile…" />
-  if (!profile) return <BusinessProfileSetup workspace={workspaces[0]} onSaved={setProfile} />
-  if (window.location.hash === '#sources') return <EvidenceLibrary workspace={workspaces[0]} />
-  if (window.location.hash === '#brief') return <EvidenceBriefPage workspace={workspaces[0]} />
-  if (window.location.hash === '#chat') return <AIChatPage workspace={workspaces[0]} profile={profile} />
-  if (window.location.hash === '#profile') return <ProfileEditor workspace={workspaces[0]} profile={profile} onSaved={setProfile} />
-  return <Dashboard user={user} workspace={workspaces[0]} profile={profile} />
+  if (!profile) return <BusinessProfileSetup workspace={currentWorkspace} onSaved={setProfile} />
+  if (window.location.hash === '#sources') return <EvidenceLibrary workspace={currentWorkspace} workspaces={workspaces} activeIndex={activeWorkspaceIndex} onSelectWorkspace={setActiveWorkspaceIndex} />
+  if (window.location.hash === '#brief') return <EvidenceBriefPage workspace={currentWorkspace} />
+  if (window.location.hash === '#chat') return <AIChatPage workspace={currentWorkspace} profile={profile} />
+  if (window.location.hash === '#profile') return <ProfileEditor workspace={currentWorkspace} profile={profile} onSaved={setProfile} />
+  return <Dashboard user={user} workspace={currentWorkspace} profile={profile} workspaces={workspaces} activeIndex={activeWorkspaceIndex} onSelectWorkspace={setActiveWorkspaceIndex} />
 }
 
 function Loading({ label }: { label: string }) { return <main className="auth-page"><div className="loading-mark"><Sparkles size={22} /></div><p>{label}</p></main> }
@@ -51,7 +53,7 @@ function BusinessProfileSetup({ workspace, onSaved }: { workspace: Workspace; on
   return <main className="auth-page profile-onboarding"><section className="auth-card profile-card"><span className="setup-icon"><Compass size={22} /></span><p className="eyebrow">STEP 2 OF 3 · BUSINESS CONTEXT</p><h1>Teach TrendsAgent about your business</h1><p>This information stays in <b>{workspace.name}</b>. It will be used as grounded context for future recommendations, never as a replacement for evidence.</p><form onSubmit={submit}><div className="form-grid"><label>Business name<input name="business_name" required maxLength={160} placeholder="e.g. Bloom Studio" /></label><label>Industry<input name="industry" placeholder="e.g. Wellness" /></label></div><label>What do you do?<textarea name="description" placeholder="A short description of your product or service" maxLength={1000} /></label><label>Who is your ideal audience?<textarea name="target_audience" placeholder="e.g. Women aged 25–40 who want simple, sustainable skincare" maxLength={1000} /></label><label>Brand voice<input name="brand_voice" placeholder="e.g. Warm, practical, and encouraging" maxLength={240} /></label><fieldset><legend>Marketing goals</legend><div className="goal-options">{goalOptions.map((goal) => <button type="button" key={goal} className={goals.includes(goal) ? 'goal selected' : 'goal'} onClick={() => toggleGoal(goal)}>{goal}</button>)}</div></fieldset><label>Competitor 1 <span className="optional">optional</span><input name="competitor_1" placeholder="Business name" /></label><label>Competitor 2 <span className="optional">optional</span><input name="competitor_2" placeholder="Business name" /></label><label>Competitor 3 <span className="optional">optional</span><input name="competitor_3" placeholder="Business name" /></label>{error && <p className="form-message">{error}</p>}<button className="primary-button auth-submit" disabled={busy}>{busy ? 'Saving securely…' : 'Save and open dashboard'}<ChevronRight size={17} /></button></form></section></main>
 }
 
-function EvidenceLibrary({ workspace }: { workspace: Workspace }) {
+function EvidenceLibrary({ workspace, workspaces, activeIndex, onSelectWorkspace }: { workspace: Workspace; workspaces?: Workspace[]; activeIndex?: number; onSelectWorkspace?: (idx: number) => void }) {
   const [sources, setSources] = useState<SourceDocument[]>([]); const [selectedIds, setSelectedIds] = useState<string[]>([]); const [busy, setBusy] = useState(false); const [message, setMessage] = useState(''); const [copyMessage, setCopyMessage] = useState('')
   function refresh() { void getSources(workspace).then(setSources).catch((error: Error) => setMessage(error.message)) }
   useEffect(refresh, [workspace.id])
@@ -255,7 +257,7 @@ function ProfileEditor({ workspace, profile, onSaved }: { workspace: Workspace; 
   return <main className="auth-page profile-onboarding"><section className="auth-card profile-card"><button className="back-link" onClick={() => { window.location.hash = 'sources'; window.location.reload() }}>← Back to evidence</button><p className="eyebrow">WORKSPACE SETTINGS</p><h1>Edit business profile</h1><p>Changes update the private context used by future AI requests. They do not change existing evidence.</p><form onSubmit={submit}><div className="form-grid"><label>Business name<input name="business_name" required defaultValue={profile.business_name} /></label><label>Industry<input name="industry" defaultValue={profile.industry ?? ''} /></label></div><label>What do you do?<textarea name="description" defaultValue={profile.description ?? ''} /></label><label>Who is your ideal audience?<textarea name="target_audience" defaultValue={profile.target_audience ?? ''} /></label><label>Brand voice<input name="brand_voice" defaultValue={profile.brand_voice ?? ''} /></label><fieldset><legend>Marketing goals</legend><div className="goal-options">{options.map((goal) => <button type="button" key={goal} className={goals.includes(goal) ? 'goal selected' : 'goal'} onClick={() => toggle(goal)}>{goal}</button>)}</div></fieldset>{message && <p className="library-message">{message}</p>}<button className="primary-button auth-submit" disabled={busy}>{busy ? 'Saving…' : 'Save profile changes'}<ChevronRight size={17} /></button></form><div className="danger-zone-card"><h3>Danger Zone</h3><p>Permanently delete workspace "{workspace.name}" and all associated evidence, trend signals, and AI briefs.</p><button className="delete-button danger-delete-btn" disabled={busy} onClick={() => void handleDeleteWorkspace()}>{busy ? 'Deleting workspace…' : 'Delete Workspace Account'}</button></div></section></main>
 }
 
-function Dashboard({ user, workspace, profile }: { user: User; workspace: Workspace; profile: BusinessProfile }) {
+function Dashboard({ user, workspace, profile, workspaces, activeIndex, onSelectWorkspace }: { user: User; workspace: Workspace; profile: BusinessProfile; workspaces?: Workspace[]; activeIndex?: number; onSelectWorkspace?: (idx: number) => void }) {
   const [activePage, setActivePage] = useState('Overview'); const [connection, setConnection] = useState({ ok: false, message: 'Checking secure backend…' }); const [data, setData] = useState<DashboardData | null>(null); const [sources, setSources] = useState<SourceDocument[]>([]); const [saving, setSaving] = useState(false); const [saveMessage, setSaveMessage] = useState(''); const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const firstName = (user.user_metadata.full_name || user.email || 'there').split(' ')[0]
   function refresh() {
@@ -279,8 +281,21 @@ function Dashboard({ user, workspace, profile }: { user: User; workspace: Worksp
       </div>
       <div className="workspace-switcher">
         <div className="workspace-avatar">{workspace.name.charAt(0).toUpperCase()}</div>
-        <div><b>{workspace.name}</b><small>{profile.industry || 'Business workspace'}</small></div>
-        <ChevronRight size={16} />
+        {workspaces && workspaces.length > 1 ? (
+          <select
+            className="workspace-select"
+            value={activeIndex ?? 0}
+            onChange={(e) => onSelectWorkspace?.(Number(e.target.value))}
+          >
+            {workspaces.map((w, idx) => (
+              <option key={w.id} value={idx}>
+                {w.name} ({w.id.slice(0, 8)}...)
+              </option>
+            ))}
+          </select>
+        ) : (
+          <div><b>{workspace.name}</b><small>{profile.industry || 'Business workspace'}</small></div>
+        )}
       </div>
       <nav>
         <p className="nav-label">WORKSPACE</p>
