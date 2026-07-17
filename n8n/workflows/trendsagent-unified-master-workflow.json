@@ -1,5 +1,5 @@
 {
-  "name": "TrendsAgent OS — Unified Master Collector",
+  "name": "TrendsAgent OS — Unified Master Collector (Robust SaaS Edition)",
   "nodes": [
     {
       "parameters": { "rule": { "interval": [{ "field": "hours", "hoursInterval": 12 }] } },
@@ -14,7 +14,7 @@
         "assignments": {
           "assignments": [
             { "id": "workspace", "name": "workspaceId", "value": "REPLACE_WITH_YOUR_WORKSPACE_ID", "type": "string" },
-            { "id": "query", "name": "researchQuery", "value": "REPLACE_WITH_YOUR_BUSINESS_INDUSTRY_OR_KEYWORD", "type": "string" },
+            { "id": "query", "name": "researchQuery", "value": "Clothing", "type": "string" },
             { "id": "youtubeKey", "name": "youtubeApiKey", "value": "REPLACE_WITH_YOUR_YOUTUBE_API_KEY", "type": "string" },
             { "id": "secret", "name": "automationSecret", "value": "REPLACE_WITH_YOUR_AUTOMATION_INGEST_SECRET", "type": "string" }
           ]
@@ -30,7 +30,10 @@
     {
       "parameters": {
         "url": "https://trends.google.com/trending/rss?geo=IN",
-        "options": { "response": { "response": { "responseFormat": "text" } } }
+        "options": {
+          "response": { "response": { "responseFormat": "text" } },
+          "retry": { "retry": { "maxTries": 3, "waitBetweenTries": 3000 } }
+        }
       },
       "id": "fetch_google_trends",
       "name": "2A. Fetch Google Trends RSS",
@@ -40,7 +43,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const xml = $input.first().json.data || '';\nconst config = $('1. Set Master Workspace Credentials').first().json;\nconst text = (v = '') => v.replace(/<!\\[CDATA\\[([\\s\\S]*?)\\]\\]>/g, '$1').replace(/<[^>]*>/g, '').trim();\nconst pick = (block, tag) => text((block.match(new RegExp(`<${tag}[^>]*>([\\s\\S]*?)<\\/${tag}>`, 'i')) || [])[1] || '');\nconst matches = [...xml.matchAll(/<item>([\\s\\S]*?)<\\/item>/gi)].slice(0, 5);\nreturn matches.map((m) => {\n  const item = m[1]; const title = pick(item, 'title'); const pub = pick(item, 'pubDate'); const traffic = pick(item, 'ht:approx_traffic');\n  return {\n    json: {\n      workspaceId: config.workspaceId,\n      title: `Google Trends: ${title}`,\n      sourceUrl: `https://trends.google.com/trends/explore?q=${encodeURIComponent(title)}`,\n      publishedAt: pub,\n      sourceName: 'Google Trends RSS',\n      sourceType: 'trend',\n      content: `Trending topic: ${title}. Search traffic: ${traffic || 'Not specified'}. Source: Google Trends.`,\n      automationSecret: config.automationSecret\n    }\n  };\n});"
+        "jsCode": "const xml = $input.first()?.json?.data || '';\nconst config = $('1. Set Master Workspace Credentials').first()?.json || {};\nconst text = (v = '') => String(v).replace(/<!\\[CDATA\\[([\\s\\S]*?)\\]\\]>/g, '$1').replace(/<[^>]*>/g, '').trim();\nconst pick = (block, tag) => text((block.match(new RegExp(`<${tag}[^>]*>([\\s\\S]*?)<\\/${tag}>`, 'i')) || [])[1] || '');\nconst matches = [...xml.matchAll(/<item>([\\s\\S]*?)<\\/item>/gi)].slice(0, 5);\nconst items = matches.map((m) => {\n  const item = m[1]; const title = pick(item, 'title'); const pub = pick(item, 'pubDate'); const traffic = pick(item, 'ht:approx_traffic');\n  if (!title) return null;\n  return {\n    json: {\n      workspaceId: config.workspaceId,\n      title: `Google Trends: ${title}`,\n      sourceUrl: `https://trends.google.com/trends/explore?q=${encodeURIComponent(title)}`,\n      publishedAt: pub ? new Date(pub).toISOString() : new Date().toISOString(),\n      sourceName: 'Google Trends RSS',\n      sourceType: 'trend',\n      content: `Trending topic on Google: ${title}. Approximate search traffic: ${traffic || 'Not specified'}. Grounded trend signal collected automatically.`,\n      automationSecret: config.automationSecret\n    }\n  };\n}).filter(Boolean);\nreturn items.length ? items : [];"
       },
       "id": "parse_google_trends",
       "name": "Normalize Google Trends",
@@ -50,8 +53,10 @@
     },
     {
       "parameters": {
-        "url": "={{ 'https://www.googleapis.com/youtube/v3/search?part=snippet&q=' + encodeURIComponent($json.researchQuery) + '&type=video&order=date&maxResults=5&key=' + $json.youtubeApiKey }}",
-        "options": {}
+        "url": "={{ 'https://www.googleapis.com/youtube/v3/search?part=snippet&q=' + encodeURIComponent(($json.researchQuery || 'Clothing').replace(/[^a-zA-Z0-9 ]/g, '')) + '&type=video&order=date&maxResults=5&key=' + $json.youtubeApiKey }}",
+        "options": {
+          "retry": { "retry": { "maxTries": 3, "waitBetweenTries": 3000 } }
+        }
       },
       "id": "fetch_youtube",
       "name": "2B. Fetch YouTube API Videos",
@@ -61,7 +66,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const config = $('1. Set Master Workspace Credentials').first().json;\nconst items = $input.first().json.items || [];\nreturn items.map((item) => {\n  const s = item.snippet || {};\n  const vId = item.id?.videoId || '';\n  const title = s.title || 'Untitled Video';\n  return {\n    json: {\n      workspaceId: config.workspaceId,\n      title: `YouTube Video: ${title}`,\n      sourceUrl: vId ? `https://www.youtube.com/watch?v=${vId}` : 'https://www.youtube.com',\n      publishedAt: s.publishedAt || new Date().toISOString(),\n      sourceName: 'YouTube Data API',\n      sourceType: 'media',\n      content: `YouTube video for query '${config.researchQuery}'. Title: ${title}. Channel: ${s.channelTitle || 'Unknown'}. Description: ${s.description || 'N/A'}`,\n      automationSecret: config.automationSecret\n    }\n  };\n});"
+        "jsCode": "const config = $('1. Set Master Workspace Credentials').first()?.json || {};\nconst rawItems = $input.first()?.json?.items || [];\nconst items = rawItems.map((item) => {\n  const s = item.snippet || {};\n  const vId = item.id?.videoId || '';\n  const title = s.title || '';\n  if (!title || !vId) return null;\n  return {\n    json: {\n      workspaceId: config.workspaceId,\n      title: `YouTube Video: ${title}`,\n      sourceUrl: `https://www.youtube.com/watch?v=${vId}`,\n      publishedAt: s.publishedAt || new Date().toISOString(),\n      sourceName: 'YouTube Data API',\n      sourceType: 'media',\n      content: `YouTube video content for industry '${config.researchQuery}'. Video title: ${title}. Channel: ${s.channelTitle || 'Unknown'}. Description: ${s.description || 'N/A'}`,\n      automationSecret: config.automationSecret\n    }\n  };\n}).filter(Boolean);\nreturn items.length ? items : [];"
       },
       "id": "parse_youtube",
       "name": "Normalize YouTube Videos",
@@ -71,8 +76,10 @@
     },
     {
       "parameters": {
-        "url": "={{ 'https://api.gdeltproject.org/api/v2/doc/doc?query=' + encodeURIComponent($json.researchQuery) + '&mode=artlist&format=json&maxrecords=5&sort=HybridRel' }}",
-        "options": {}
+        "url": "={{ 'https://api.gdeltproject.org/api/v2/doc/doc?query=' + encodeURIComponent(($json.researchQuery || 'Clothing').replace(/[^a-zA-Z0-9 ]/g, '')) + '&mode=artlist&format=json&maxrecords=5&sort=HybridRel' }}",
+        "options": {
+          "retry": { "retry": { "maxTries": 3, "waitBetweenTries": 5000 } }
+        }
       },
       "id": "fetch_gdelt",
       "name": "2C. Fetch GDELT Industry News",
@@ -82,7 +89,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const config = $('1. Set Master Workspace Credentials').first().json;\nconst articles = $input.first().json.articles || [];\nreturn articles.slice(0, 5).map((art) => ({\n  json: {\n    workspaceId: config.workspaceId,\n    title: `GDELT News: ${art.title}`,\n    sourceUrl: art.url,\n    publishedAt: art.seendate ? `${art.seendate.slice(0,4)}-${art.seendate.slice(4,6)}-${art.seendate.slice(6,8)}T00:00:00Z` : new Date().toISOString(),\n    sourceName: 'GDELT DOC API',\n    sourceType: 'report',\n    content: `Industry news article for query '${config.researchQuery}'. Title: ${art.title}. Outlet: ${art.domain || 'Unknown'}. URL: ${art.url}`,\n    automationSecret: config.automationSecret\n  }\n}));"
+        "jsCode": "const config = $('1. Set Master Workspace Credentials').first()?.json || {};\nconst articles = $input.first()?.json?.articles || [];\nconst items = articles.slice(0, 5).map((art) => {\n  if (!art.title || !art.url || !art.url.startsWith('http')) return null;\n  return {\n    json: {\n      workspaceId: config.workspaceId,\n      title: `GDELT News: ${art.title}`,\n      sourceUrl: art.url,\n      publishedAt: art.seendate ? `${art.seendate.slice(0,4)}-${art.seendate.slice(4,6)}-${art.seendate.slice(6,8)}T00:00:00Z` : new Date().toISOString(),\n      sourceName: 'GDELT DOC API',\n      sourceType: 'report',\n      content: `Industry news article for '${config.researchQuery}'. Title: ${art.title}. Domain: ${art.domain || 'Unknown'}. Public URL: ${art.url}`,\n      automationSecret: config.automationSecret\n    }\n  };\n}).filter(Boolean);\nreturn items.length ? items : [];"
       },
       "id": "parse_gdelt",
       "name": "Normalize GDELT News",
@@ -92,30 +99,42 @@
     },
     {
       "parameters": {
-        "url": "={{ 'https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article/en.wikipedia.org/all-access/user/' + encodeURIComponent($json.researchQuery.replaceAll(' ', '_')) + '/daily/2026060100/2026070100' }}",
+        "jsCode": "const config = $input.first()?.json || {};\nconst cleanQuery = (config.researchQuery || 'Clothing').replace(/[^a-zA-Z0-9]/g, '');\nconst wikipediaTitle = cleanQuery || 'Clothing';\nconst end = new Date(); end.setUTCDate(end.getUTCDate() - 1);\nconst start = new Date(end); start.setUTCDate(start.getUTCDate() - 29);\nconst fmt = (d) => d.toISOString().slice(0, 10).replaceAll('-', '') + '00';\nreturn [{ json: { ...config, wikiArticle: wikipediaTitle, startFmt: fmt(start), endFmt: fmt(end) } }];"
+      },
+      "id": "wiki_date_calc",
+      "name": "Calculate Rolling 30 Day Dates",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [680, 580]
+    },
+    {
+      "parameters": {
+        "url": "={{ 'https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article/en.wikipedia.org/all-access/user/' + $json.wikiArticle + '/daily/' + $json.startFmt + '/' + $json.endFmt }}",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
             { "name": "User-Agent", "value": "TrendsAgent/1.0 (https://trendsagent.os)" }
           ]
         },
-        "options": {}
+        "options": {
+          "retry": { "retry": { "maxTries": 3, "waitBetweenTries": 3000 } }
+        }
       },
       "id": "fetch_wikimedia",
       "name": "2D. Fetch Wikimedia Attention",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [700, 580]
+      "position": [880, 580]
     },
     {
       "parameters": {
-        "jsCode": "const config = $('1. Set Master Workspace Credentials').first().json;\nconst items = $input.first().json.items || [];\nif (!items.length) return [];\nconst views = items.map((i) => Number(i.views || 0));\nconst avg = views.reduce((a, b) => a + b, 0) / views.length;\nreturn [{\n  json: {\n    workspaceId: config.workspaceId,\n    title: `Wikimedia Attention: ${config.researchQuery}`,\n    sourceUrl: `https://en.wikipedia.org/wiki/${encodeURIComponent(config.researchQuery.replaceAll(' ', '_'))}`,\n    publishedAt: new Date().toISOString(),\n    sourceName: 'Wikimedia Pageviews API',\n    sourceType: 'report',\n    content: `Wikimedia attention proxy for '${config.researchQuery}'. 30-day average daily views: ${avg.toFixed(0)}.`,\n    automationSecret: config.automationSecret\n  }\n}];"
+        "jsCode": "const config = $('1. Set Master Workspace Credentials').first()?.json || {};\nconst rawItems = $input.first()?.json?.items || [];\nif (!rawItems.length) return [];\nconst views = rawItems.map((i) => Number(i.views || 0));\nconst avg = views.reduce((a, b) => a + b, 0) / views.length;\nreturn [{\n  json: {\n    workspaceId: config.workspaceId,\n    title: `Wikimedia Attention: ${config.researchQuery || 'Clothing'}`,\n    sourceUrl: `https://en.wikipedia.org/wiki/${encodeURIComponent(config.researchQuery || 'Clothing')}`,\n    publishedAt: new Date().toISOString(),\n    sourceName: 'Wikimedia Pageviews API',\n    sourceType: 'report',\n    content: `Wikimedia pageview attention signal for Wikipedia article '${config.researchQuery || 'Clothing'}'. 30-day average daily pageviews: ${avg.toFixed(0)}.`,\n    automationSecret: config.automationSecret\n  }\n}];"
       },
       "id": "parse_wikimedia",
       "name": "Normalize Wikimedia Attention",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [950, 580]
+      "position": [1080, 580]
     },
     {
       "parameters": {
@@ -135,7 +154,7 @@
       "name": "3. Ingest Evidence to TrendsAgent OS",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1200, 340]
+      "position": [1280, 340]
     }
   ],
   "connections": {
@@ -146,7 +165,7 @@
           { "node": "2A. Fetch Google Trends RSS", "type": "main", "index": 0 },
           { "node": "2B. Fetch YouTube API Videos", "type": "main", "index": 0 },
           { "node": "2C. Fetch GDELT Industry News", "type": "main", "index": 0 },
-          { "node": "2D. Fetch Wikimedia Attention", "type": "main", "index": 0 }
+          { "node": "Calculate Rolling 30 Day Dates", "type": "main", "index": 0 }
         ]
       ]
     },
@@ -156,6 +175,7 @@
     "Normalize YouTube Videos": { "main": [[{ "node": "3. Ingest Evidence to TrendsAgent OS", "type": "main", "index": 0 }]] },
     "2C. Fetch GDELT Industry News": { "main": [[{ "node": "Normalize GDELT News", "type": "main", "index": 0 }]] },
     "Normalize GDELT News": { "main": [[{ "node": "3. Ingest Evidence to TrendsAgent OS", "type": "main", "index": 0 }]] },
+    "Calculate Rolling 30 Day Dates": { "main": [[{ "node": "2D. Fetch Wikimedia Attention", "type": "main", "index": 0 }]] },
     "2D. Fetch Wikimedia Attention": { "main": [[{ "node": "Normalize Wikimedia Attention", "type": "main", "index": 0 }]] },
     "Normalize Wikimedia Attention": { "main": [[{ "node": "3. Ingest Evidence to TrendsAgent OS", "type": "main", "index": 0 }]] }
   },
