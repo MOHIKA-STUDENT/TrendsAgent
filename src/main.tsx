@@ -227,11 +227,18 @@ function ProfileEditor({ workspace, profile, onSaved }: { workspace: Workspace; 
 }
 
 function Dashboard({ user, workspace, profile }: { user: User; workspace: Workspace; profile: BusinessProfile }) {
-  const [activePage, setActivePage] = useState('Overview'); const [connection, setConnection] = useState({ ok: false, message: 'Checking secure backend…' }); const [data, setData] = useState<DashboardData | null>(null); const [saving, setSaving] = useState(false); const [saveMessage, setSaveMessage] = useState(''); const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const [activePage, setActivePage] = useState('Overview'); const [connection, setConnection] = useState({ ok: false, message: 'Checking secure backend…' }); const [data, setData] = useState<DashboardData | null>(null); const [sources, setSources] = useState<SourceDocument[]>([]); const [saving, setSaving] = useState(false); const [saveMessage, setSaveMessage] = useState(''); const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const firstName = (user.user_metadata.full_name || user.email || 'there').split(' ')[0]
-  function refresh() { void getDashboardData(workspace).then(setData).catch(() => setData(null)) }
+  function refresh() {
+    void getDashboardData(workspace).then(setData).catch(() => setData(null))
+    void getSources(workspace).then(setSources).catch(() => setSources([]))
+  }
   useEffect(() => { void checkSupabaseConnection().then(setConnection); refresh() }, [workspace.id])
-  useEffect(() => { if (activePage === 'Trend intelligence') { window.location.hash = 'brief'; window.location.reload() } }, [activePage])
+  useEffect(() => {
+    if (activePage === 'Trend intelligence') { window.location.hash = 'brief'; window.location.reload() }
+    if (activePage === 'Reports' || activePage === 'Recommendations') { window.location.hash = 'chat'; window.location.reload() }
+    if (activePage === 'Knowledge base') { window.location.hash = 'sources'; window.location.reload() }
+  }, [activePage])
   async function saveRecommendation() { setSaving(true); try { await saveDraftRecommendation(workspace); setSaveMessage('Saved as a planning draft.'); refresh() } catch (error) { setSaveMessage(error instanceof Error ? error.message : 'Could not save the draft.') } finally { setSaving(false) } }
   const openSources = () => { window.location.hash = 'sources'; window.location.reload() }
   return <main className="app-shell">
@@ -255,6 +262,8 @@ function Dashboard({ user, workspace, profile }: { user: User; workspace: Worksp
             onClick={() => {
               setMobileMenuOpen(false)
               if (label === 'Knowledge base') openSources()
+              else if (label === 'Trend intelligence') { window.location.hash = 'brief'; window.location.reload() }
+              else if (label === 'Reports' || label === 'Recommendations') { window.location.hash = 'chat'; window.location.reload() }
               else setActivePage(label)
             }}
           >
@@ -295,20 +304,38 @@ function Dashboard({ user, workspace, profile }: { user: User; workspace: Worksp
         </div>
         <section className="metrics">
           <Metric icon={<Compass size={20} />} label="Business context" value="✓" suffix="" note={profile.target_audience ? 'Audience profile saved' : 'Profile needs audience'} tone="violet" />
-          <Metric icon={<TrendingUp size={20} />} label="Verified trend signals" value={String(data?.trendCount ?? 0)} suffix="" note="Source analysis comes next" tone="blue" />
+          <Metric icon={<TrendingUp size={20} />} label="Verified trend signals" value={String(sources.length || data?.trendCount || 0)} suffix="" note="Source analysis ready" tone="blue" />
           <Metric icon={<Target size={20} />} label="Saved recommendations" value={String(data?.savedRecommendationCount ?? 0)} suffix="" note={`${data?.competitorCount ?? 0} competitors saved`} tone="orange" />
         </section>
         <div className="dashboard-grid">
           <section className="card signal-card">
             <div className="card-heading">
               <div><p className="eyebrow">WHAT'S RISING</p><h2>Verified signals</h2></div>
-              <button className="text-button" onClick={openSources}>Add sources <ArrowUpRight size={15} /></button>
+              <button className="text-button" onClick={openSources}>View all ({sources.length}) <ArrowUpRight size={15} /></button>
             </div>
-            <div className="empty-state">
-              <TrendingUp size={21} />
-              <b>No verified signals yet</b>
-              <p>Open Knowledge base and save trusted evidence. The AI will only analyze what you approve.</p>
-            </div>
+            {sources.length === 0 ? (
+              <div className="empty-state">
+                <TrendingUp size={21} />
+                <b>No verified signals yet</b>
+                <p>Run your n8n collector workflow to ingest Google Trends, YouTube, News, and Wikipedia signals.</p>
+              </div>
+            ) : (
+              <div className="source-list">
+                {sources.slice(0, 6).map((item) => (
+                  <article key={item.id} className="source-item">
+                    <div className="source-main">
+                      <b>{item.title}</b>
+                      {item.source_url && (
+                        <a href={item.source_url} target="_blank" rel="noreferrer">
+                          {item.source_url} <ArrowUpRight size={13} />
+                        </a>
+                      )}
+                    </div>
+                    <span className="source-tag">{item.source_type}</span>
+                  </article>
+                ))}
+              </div>
+            )}
           </section>
           <section className="card focus-card">
             <p className="eyebrow">YOUR CONTEXT</p>
