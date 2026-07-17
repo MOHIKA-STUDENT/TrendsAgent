@@ -8,7 +8,7 @@ import { getBusinessProfile, saveBusinessProfile, type BusinessProfile } from '.
 import { getDashboardData, saveDraftRecommendation, type DashboardData } from './lib/dashboard'
 import { addSource, deleteSource, getSources, type SourceDocument } from './lib/sources'
 import { checkSupabaseConnection, supabase } from './lib/supabase'
-import { generateEvidenceBrief, type EvidenceBrief } from './lib/ai'
+import { generateEvidenceBrief, sendAIChatMessage, type EvidenceBrief } from './lib/ai'
 
 type NavItem = { label: string; icon: typeof LayoutDashboard }
 const navItems: NavItem[] = [{ label: 'Overview', icon: LayoutDashboard }, { label: 'Trend intelligence', icon: TrendingUp }, { label: 'Competitors', icon: Users }, { label: 'Recommendations', icon: Sparkles }, { label: 'Reports', icon: FileText }, { label: 'Knowledge base', icon: BookOpen }]
@@ -25,6 +25,7 @@ function App() {
   if (!profile) return <BusinessProfileSetup workspace={workspaces[0]} onSaved={setProfile} />
   if (window.location.hash === '#sources') return <EvidenceLibrary workspace={workspaces[0]} />
   if (window.location.hash === '#brief') return <EvidenceBriefPage workspace={workspaces[0]} />
+  if (window.location.hash === '#chat') return <AIChatPage workspace={workspaces[0]} profile={profile} />
   if (window.location.hash === '#profile') return <ProfileEditor workspace={workspaces[0]} profile={profile} onSaved={setProfile} />
   return <Dashboard user={user} workspace={workspaces[0]} profile={profile} />
 }
@@ -114,6 +115,109 @@ function EvidenceBriefPage({ workspace }: { workspace: Workspace }) {
   }
   return <main className="library-page"><header className="library-header"><div className="brand"><span className="brand-mark"><Sparkles size={17} /></span><span>Trends<span>Agent</span></span></div><div className="library-actions"><button className="outline-button" onClick={() => { window.location.hash = ''; window.location.reload() }}>Dashboard</button><button className="outline-button" onClick={() => { window.location.hash = 'sources'; window.location.reload() }}>Knowledge base</button></div></header><section className="brief-page"><p className="eyebrow">PHASE 8 · EVIDENCE BRIEF</p><h1>What your saved evidence can support</h1><p className="subhead">This creates an on-demand brief from saved sources only. It cites sources and labels uncertainty; it does not save recommendations automatically.</p><section className="card brief-intro"><div><b>Ready to analyze {workspace.name}</b><p>The AI receives the eight most recent approved sources. Your provider API key stays on the server.</p></div><button className="primary-button" disabled={busy} onClick={() => void runBrief()}><Bot size={17} />{busy ? 'Reading evidence…' : 'Generate evidence brief'}</button></section>{error && <p className="brief-error">{error}</p>}{brief && <section className="card brief-result"><div className="card-heading"><div><p className="eyebrow">GROUNDED SUMMARY</p><h2>Evidence brief</h2></div><span className="priority">ON-DEMAND</span></div><FormattedBriefOutput content={brief.output} /><div className="brief-sources"><b>Sources supplied to the AI</b>{brief.evidence.map((source, index) => <a key={source.id} href={source.sourceUrl ?? undefined} target="_blank" rel="noreferrer">[{index + 1}] {source.title}</a>)}</div><small className="brief-meta">Model: {brief.model} via {brief.provider}. Review the original sources before acting on an interpretation.</small></section>}</section></main>
 }
+
+function AIChatPage({ workspace, profile }: { workspace: Workspace; profile: BusinessProfile }) {
+  const [messages, setMessages] = useState<Array<{ role: 'user' | 'assistant'; content: string; evidence?: EvidenceBrief['evidence']; provider?: string; model?: string }>>([
+    {
+      role: 'assistant',
+      content: `Hello! I am your **TrendsAgent OS Assistant** for **${profile.business_name}**.\n\nI continuously analyze your saved market evidence, YouTube video signals, and industry news. How can I help you today?`,
+    },
+  ])
+  const [input, setInput] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+
+  async function handleSubmit(e: FormEvent) {
+    e.preventDefault()
+    if (!input.trim() || busy) return
+    const userMsg = input.trim()
+    setInput('')
+    setError('')
+    setMessages((prev) => [...prev, { role: 'user', content: userMsg }])
+    setBusy(true)
+
+    try {
+      const res = await sendAIChatMessage(workspace.id, userMsg)
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: 'assistant',
+          content: res.output,
+          evidence: res.evidence,
+          provider: res.provider,
+          model: res.model,
+        },
+      ])
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not retrieve AI response.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <main className="library-page">
+      <header className="library-header">
+        <div className="brand">
+          <span className="brand-mark"><Sparkles size={17} /></span>
+          <span>Trends<span>Agent Chat</span></span>
+        </div>
+        <div className="library-actions">
+          <button className="outline-button" onClick={() => { window.location.hash = ''; window.location.reload() }}>Dashboard</button>
+          <button className="outline-button" onClick={() => { window.location.hash = 'brief'; window.location.reload() }}>Evidence Brief</button>
+          <button className="outline-button" onClick={() => { window.location.hash = 'sources'; window.location.reload() }}>Knowledge Base</button>
+        </div>
+      </header>
+      <section className="chat-page-container">
+        <div className="chat-header-banner">
+          <div className="eyebrow">AI CONTENT INTELLIGENCE CHAT</div>
+          <h2>Ask TrendsAgent for {profile.business_name}</h2>
+          <p>Answers are strictly grounded in your database evidence to prevent AI hallucination.</p>
+        </div>
+        <div className="chat-messages-box">
+          {messages.map((msg, i) => (
+            <div key={i} className={msg.role === 'user' ? 'chat-bubble user-bubble' : 'chat-bubble ai-bubble'}>
+              <div className="chat-author">
+                {msg.role === 'user' ? <b>You</b> : <b><Bot size={15} /> TrendsAgent AI</b>}
+              </div>
+              <FormattedBriefOutput content={msg.content} />
+              {msg.evidence && msg.evidence.length > 0 && (
+                <div className="brief-sources">
+                  <b>Supplied Sources:</b>
+                  {msg.evidence.map((src, idx) => (
+                    <a key={src.id} href={src.sourceUrl ?? undefined} target="_blank" rel="noreferrer">
+                      [{idx + 1}] {src.title}
+                    </a>
+                  ))}
+                </div>
+              )}
+              {msg.model && <small className="brief-meta">Model: {msg.model} via {msg.provider}</small>}
+            </div>
+          ))}
+          {busy && (
+            <div className="chat-bubble ai-bubble thinking">
+              <Sparkles size={16} className="spin" /> Reasoning over saved evidence & business profile...
+            </div>
+          )}
+        </div>
+        {error && <p className="brief-error">{error}</p>}
+        <form onSubmit={handleSubmit} className="chat-form">
+          <input
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            placeholder={`Ask about marketing campaigns, competitor moves, or trends for ${profile.business_name}...`}
+            disabled={busy}
+          />
+          <button className="primary-button" disabled={busy || !input.trim()}>
+            Send <ChevronRight size={17} />
+          </button>
+        </form>
+      </section>
+    </main>
+  )
+}
+
+
 
 function ProfileEditor({ workspace, profile, onSaved }: { workspace: Workspace; profile: BusinessProfile; onSaved: (profile: BusinessProfile) => void }) {
   const [busy, setBusy] = useState(false); const [message, setMessage] = useState(''); const [goals, setGoals] = useState(profile.marketing_goals); const options = ['Grow brand awareness', 'Generate leads', 'Increase sales', 'Build customer trust']
