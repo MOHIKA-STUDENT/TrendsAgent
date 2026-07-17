@@ -1,7 +1,8 @@
 // Receives validated source records from n8n. This is a server-only ingestion path.
-import { Pool, type PoolClient } from 'jsr:@db/postgres@^0'
+import { Pool, type PoolClient } from '@db/postgres'
 
-type IngestBody = { workspaceId: string; title: string; sourceUrl: string; publishedAt?: string; content: string; sourceName: string }
+type SourceType = 'trend' | 'report' | 'competitor'
+type IngestBody = { workspaceId: string; title: string; sourceUrl: string; publishedAt?: string; content: string; sourceName: string; sourceType: SourceType }
 
 let pool: Pool | undefined
 
@@ -32,6 +33,7 @@ Deno.serve(async (request) => {
   const body: IngestBody = {
     workspaceId: asText(raw.workspaceId), title: asText(raw.title), sourceUrl: asText(raw.sourceUrl),
     publishedAt: asText(raw.publishedAt) || undefined, content: asText(raw.content), sourceName: asText(raw.sourceName),
+    sourceType: (asText(raw.sourceType) || 'trend') as SourceType,
   }
   const missing: string[] = []
   if (!body.workspaceId) missing.push('workspaceId')
@@ -39,6 +41,7 @@ Deno.serve(async (request) => {
   if (!body.sourceUrl.startsWith('http')) missing.push('sourceUrl (must start with http)')
   if (body.content.length < 30) missing.push('content (at least 30 characters)')
   if (!body.sourceName) missing.push('sourceName')
+  if (!['trend', 'report', 'competitor'].includes(body.sourceType)) missing.push('sourceType (trend, report, or competitor)')
   if (missing.length) return reply({ error: 'Invalid or incomplete source record', missing }, 400)
 
   const database = getPool()
@@ -54,7 +57,7 @@ Deno.serve(async (request) => {
 
     await connection.queryArray`
       insert into public.source_documents (workspace_id, title, source_url, source_type, published_at, content)
-      values (${body.workspaceId}::uuid, ${body.title}, ${body.sourceUrl}, 'trend', ${body.publishedAt || null}, ${body.content})
+      values (${body.workspaceId}::uuid, ${body.title}, ${body.sourceUrl}, ${body.sourceType}, ${body.publishedAt || null}, ${body.content})
     `
     await log(connection, body, 'accepted', 'Evidence saved')
     return reply({ status: 'accepted' }, 201)

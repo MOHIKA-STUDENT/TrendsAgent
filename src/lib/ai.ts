@@ -16,7 +16,11 @@ export async function generateEvidenceBrief(workspaceId: string): Promise<Eviden
       prompt: 'Summarize the most recent saved evidence. List only supported observations, explain important uncertainty, and suggest one cautious marketing question to investigate next.',
     },
   })
-  if (error) throw new Error(data?.error ?? error.message)
+  if (error) {
+    const response = (error as { context?: Response }).context
+    const payload = response ? await response.clone().json().catch(() => null) as { error?: string } | null : null
+    throw new Error(payload?.error ?? data?.error ?? error.message)
+  }
   if (!data?.output) throw new Error(data?.error ?? 'The AI gateway returned no brief.')
   return data as EvidenceBrief
 }

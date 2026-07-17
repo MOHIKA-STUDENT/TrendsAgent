@@ -13,6 +13,17 @@ This is a self-hosted, free starting point for collecting approved public trend 
 
 The workflow begins **inactive**. Test it manually before activating its schedule.
 
+## Additional real-source templates
+
+The `workflows/` folder also includes disabled templates for sources that add different evidence types:
+
+| Template | What it collects | You configure | Important limit |
+| --- | --- | --- | --- |
+| `gdelt-news-metadata.json` | article metadata for an industry or competitor query | workspace ID, research query, automation secret | news coverage is not sales evidence |
+| `wikimedia-pageviews.json` | 30-day attention change for one Wikipedia topic | workspace ID, article title, automation secret | pageviews are attention, not purchase intent |
+
+Import one template at a time, replace every `REPLACE_WITH_...` value inside n8n, test it manually, review the saved evidence, and only then set the workflow active. The templates contain no real secret.
+
 ## One-time setup
 
 ### 1. Prepare Supabase

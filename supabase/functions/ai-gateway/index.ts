@@ -1,6 +1,6 @@
 // Server-side, evidence-grounded AI gateway. Provider keys never reach the browser.
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import { Pool, type PoolClient } from 'jsr:@db/postgres@^0'
+import { Pool, type PoolClient } from '@db/postgres'
 
 type GatewayRequest = { workspaceId: string; operation: 'brief' | 'chat' | 'recommendation'; prompt: string }
 type Evidence = { id: string; title: string; source_url: string | null; published_at: string | Date | null; content: string }
@@ -58,7 +58,13 @@ Deno.serve(async (request) => {
     const system = 'You are TrendsAgent. Use only the supplied evidence. Do not invent facts or claim a trend is relevant to the business unless the evidence supports it. Cite every factual claim with [source-number]. Clearly label interpretations and recommendations. If the evidence is insufficient, say so. Return concise Markdown.'
     await logRun(connection, body, user.id, 'started', evidence.length)
     const response = await fetch(`${baseUrl.replace(/\/$/, '')}/chat/completions`, { method: 'POST', headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ model, temperature: 0.2, messages: [{ role: 'system', content: system }, { role: 'user', content: `User request:\n${body.prompt}\n\nVerified evidence:\n${sourceText}` }] }) })
-    if (!response.ok) throw new Error(`Provider returned ${response.status}`)
+    if (!response.ok) {
+      await logRun(connection, body, user.id, 'failed', evidence.length, `PROVIDER_${response.status}`)
+      if (response.status === 401 || response.status === 403) return json({ error: 'The AI provider rejected the server credential. Update AI_API_KEY in Supabase Edge Function Secrets.', code: 'AI_PROVIDER_AUTH_FAILED' }, 502)
+      if (response.status === 429) return json({ error: 'The AI provider rate limit or available credit has been reached. Wait and try again, or check your provider account.', code: 'AI_PROVIDER_RATE_LIMITED' }, 429)
+      if (response.status === 404) return json({ error: 'The configured AI model is unavailable. Check AI_MODEL in Supabase Edge Function Secrets.', code: 'AI_MODEL_UNAVAILABLE' }, 502)
+      return json({ error: 'The AI provider could not complete this request. Check AI_BASE_URL, AI_MODEL, and the provider status.', code: 'AI_PROVIDER_ERROR', providerStatus: response.status }, 502)
+    }
     const payload = await response.json()
     const output = payload.choices?.[0]?.message?.content
     if (!output) throw new Error('Provider returned no usable content')
@@ -66,7 +72,7 @@ Deno.serve(async (request) => {
     return json({ output, provider, model, evidence: evidence.map(({ id, title, source_url, published_at }) => ({ id, title, sourceUrl: source_url, publishedAt: published_at })) })
   } catch (error) {
     if (connection) await logRun(connection, body, user.id, 'failed', 0, 'PROVIDER_OR_DATABASE_ERROR')
-    return json({ error: 'The AI provider could not complete this request. No recommendation was saved.', detail: error instanceof Error ? error.message : undefined }, 502)
+    return json({ error: 'The AI gateway could not complete this request. No recommendation was saved.', code: 'AI_GATEWAY_ERROR' }, 502)
   } finally { connection?.release() }
 })
 

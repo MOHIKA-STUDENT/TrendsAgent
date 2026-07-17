@@ -1,0 +1,56 @@
+{
+  "name": "TrendsAgent — GDELT News Metadata Collector",
+  "nodes": [
+    {
+      "parameters": { "rule": { "interval": [{ "field": "hours", "hoursInterval": 12 }] } },
+      "id": "schedule",
+      "name": "Every 12 hours",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [240, 300]
+    },
+    {
+      "parameters": { "assignments": { "assignments": [
+        { "id": "workspace", "name": "workspaceId", "value": "REPLACE_WITH_YOUR_WORKSPACE_ID", "type": "string" },
+        { "id": "query", "name": "researchQuery", "value": "REPLACE_WITH_YOUR_BUSINESS_OR_INDUSTRY_QUERY", "type": "string" }
+      ] }, "options": {} },
+      "id": "configuration",
+      "name": "Set research configuration",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [450, 300]
+    },
+    {
+      "parameters": { "url": "={{ 'https://api.gdeltproject.org/api/v2/doc/doc?query=' + encodeURIComponent($json.researchQuery) + '&mode=artlist&format=json&maxrecords=10&sort=HybridRel' }}", "options": {} },
+      "id": "fetch",
+      "name": "Fetch GDELT article metadata",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [680, 300]
+    },
+    {
+      "parameters": { "jsCode": "const config = $('Set research configuration').first().json;\nconst toIso = (value) => {\n  const text = String(value || '');\n  if (/^\\d{14}$/.test(text)) return `${text.slice(0, 4)}-${text.slice(4, 6)}-${text.slice(6, 8)}T${text.slice(8, 10)}:${text.slice(10, 12)}:${text.slice(12, 14)}Z`;\n  const date = new Date(text); return Number.isNaN(date.valueOf()) ? undefined : date.toISOString();\n};\nreturn ($input.first().json.articles || []).filter((article) => article.title && article.url).slice(0, 10).map((article) => ({ json: {\n  workspaceId: config.workspaceId,\n  title: `GDELT News: ${article.title}`,\n  sourceUrl: article.url,\n  publishedAt: toIso(article.seendate),\n  sourceName: 'GDELT DOC API',\n  sourceType: 'report',\n  content: `News metadata collected from GDELT. Outlet: ${article.domain || 'not supplied'}. Tone: ${article.tone || 'not supplied'}. Language: ${article.language || 'not supplied'}. Query: ${config.researchQuery}. This is article metadata, not a claim about business performance.`\n} }));" },
+      "id": "normalize",
+      "name": "Normalize permitted news metadata",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [930, 300]
+    },
+    {
+      "parameters": { "method": "POST", "url": "https://wguazpvpelerzoqglyst.supabase.co/functions/v1/automation-ingest", "sendHeaders": true, "headerParameters": { "parameters": [{ "name": "x-automation-secret", "value": "REPLACE_WITH_YOUR_AUTOMATION_INGEST_SECRET" }] }, "sendBody": true, "contentType": "json", "jsonBody": "={{ { workspaceId: $json.workspaceId, title: $json.title, sourceUrl: $json.sourceUrl, publishedAt: $json.publishedAt, content: $json.content, sourceName: $json.sourceName, sourceType: $json.sourceType } }}" },
+      "id": "ingest",
+      "name": "Save approved news evidence",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1190, 300]
+    }
+  ],
+  "connections": {
+    "Every 12 hours": { "main": [[{ "node": "Set research configuration", "type": "main", "index": 0 }]] },
+    "Set research configuration": { "main": [[{ "node": "Fetch GDELT article metadata", "type": "main", "index": 0 }]] },
+    "Fetch GDELT article metadata": { "main": [[{ "node": "Normalize permitted news metadata", "type": "main", "index": 0 }]] },
+    "Normalize permitted news metadata": { "main": [[{ "node": "Save approved news evidence", "type": "main", "index": 0 }]] }
+  },
+  "active": false,
+  "settings": { "executionOrder": "v1" }
+}

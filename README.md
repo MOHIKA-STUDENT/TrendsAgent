@@ -87,6 +87,7 @@ Every team member should have their own local `.env` files. Never copy a teammat
 - [Free-source strategy](docs/FREE_SOURCE_STRATEGY.md)
 - [Contributing and security rules](CONTRIBUTING.md)
 - [Engineering phase plan](docs/PHASE_PLAN.md)
+- [Production deployment checklist](docs/PRODUCTION_DEPLOYMENT.md)
 
 ## Security
 

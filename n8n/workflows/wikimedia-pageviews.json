@@ -1,0 +1,66 @@
+{
+  "name": "TrendsAgent — Wikimedia Attention Signal Collector",
+  "nodes": [
+    {
+      "parameters": { "rule": { "interval": [{ "field": "days", "daysInterval": 1 }] } },
+      "id": "schedule",
+      "name": "Every day",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [240, 300]
+    },
+    {
+      "parameters": { "assignments": { "assignments": [
+        { "id": "workspace", "name": "workspaceId", "value": "REPLACE_WITH_YOUR_WORKSPACE_ID", "type": "string" },
+        { "id": "article", "name": "articleTitle", "value": "REPLACE_WITH_A_RELEVANT_WIKIPEDIA_ARTICLE_TITLE", "type": "string" },
+        { "id": "project", "name": "project", "value": "en.wikipedia.org", "type": "string" }
+      ] }, "options": {} },
+      "id": "configuration",
+      "name": "Set attention topic",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [450, 300]
+    },
+    {
+      "parameters": { "jsCode": "const config = $input.first().json;\nconst format = (date) => date.toISOString().slice(0, 10).replaceAll('-', '') + '00';\nconst end = new Date(); end.setUTCDate(end.getUTCDate() - 1);\nconst start = new Date(end); start.setUTCDate(start.getUTCDate() - 29);\nreturn [{ json: { ...config, start: format(start), end: format(end), encodedTitle: encodeURIComponent(config.articleTitle.replaceAll(' ', '_')) } }];" },
+      "id": "dates",
+      "name": "Build 30 day pageview request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [680, 300]
+    },
+    {
+      "parameters": { "url": "={{ 'https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article/' + $json.project + '/all-access/user/' + $json.encodedTitle + '/daily/' + $json.start + '/' + $json.end }}", "options": {} },
+      "id": "fetch",
+      "name": "Fetch Wikimedia pageviews",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [910, 300]
+    },
+    {
+      "parameters": { "jsCode": "const config = $('Build 30 day pageview request').first().json;\nconst items = $input.first().json.items || [];\nif (items.length < 14) return [];\nconst views = items.map((item) => Number(item.views || 0));\nconst average = (values) => values.reduce((sum, value) => sum + value, 0) / values.length;\nconst recent = average(views.slice(-7)); const previous = average(views.slice(-14, -7));\nconst change = previous ? ((recent - previous) / previous) * 100 : 0;\nreturn [{ json: { workspaceId: config.workspaceId, title: `Wikimedia attention: ${config.articleTitle}`, sourceUrl: `https://${config.project}/wiki/${encodeURIComponent(config.articleTitle.replaceAll(' ', '_'))}`, publishedAt: new Date().toISOString(), sourceName: 'Wikimedia Pageviews API', sourceType: 'report', content: `Wikimedia pageview attention proxy for ${config.articleTitle}. Recent 7-day average: ${recent.toFixed(0)} daily views. Previous 7-day average: ${previous.toFixed(0)}. Change: ${change.toFixed(1)}%. This measures information-seeking attention, not demand, sales, or purchase intent.` } }];" },
+      "id": "normalize",
+      "name": "Calculate attention proxy",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1150, 300]
+    },
+    {
+      "parameters": { "method": "POST", "url": "https://wguazpvpelerzoqglyst.supabase.co/functions/v1/automation-ingest", "sendHeaders": true, "headerParameters": { "parameters": [{ "name": "x-automation-secret", "value": "REPLACE_WITH_YOUR_AUTOMATION_INGEST_SECRET" }] }, "sendBody": true, "contentType": "json", "jsonBody": "={{ { workspaceId: $json.workspaceId, title: $json.title, sourceUrl: $json.sourceUrl, publishedAt: $json.publishedAt, content: $json.content, sourceName: $json.sourceName, sourceType: $json.sourceType } }}" },
+      "id": "ingest",
+      "name": "Save approved attention evidence",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1410, 300]
+    }
+  ],
+  "connections": {
+    "Every day": { "main": [[{ "node": "Set attention topic", "type": "main", "index": 0 }]] },
+    "Set attention topic": { "main": [[{ "node": "Build 30 day pageview request", "type": "main", "index": 0 }]] },
+    "Build 30 day pageview request": { "main": [[{ "node": "Fetch Wikimedia pageviews", "type": "main", "index": 0 }]] },
+    "Fetch Wikimedia pageviews": { "main": [[{ "node": "Calculate attention proxy", "type": "main", "index": 0 }]] },
+    "Calculate attention proxy": { "main": [[{ "node": "Save approved attention evidence", "type": "main", "index": 0 }]] }
+  },
+  "active": false,
+  "settings": { "executionOrder": "v1" }
+}
