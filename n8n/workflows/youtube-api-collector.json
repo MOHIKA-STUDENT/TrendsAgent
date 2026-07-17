@@ -1,0 +1,79 @@
+{
+  "name": "TrendsAgent — YouTube API Video Collector",
+  "nodes": [
+    {
+      "parameters": { "rule": { "interval": [{ "field": "hours", "hoursInterval": 12 }] } },
+      "id": "schedule",
+      "name": "Every 12 hours",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            { "id": "workspace", "name": "workspaceId", "value": "REPLACE_WITH_YOUR_WORKSPACE_ID", "type": "string" },
+            { "id": "query", "name": "searchQuery", "value": "REPLACE_WITH_YOUR_TOPIC_OR_KEYWORD", "type": "string" },
+            { "id": "youtubeKey", "name": "youtubeApiKey", "value": "REPLACE_WITH_YOUR_YOUTUBE_API_KEY", "type": "string" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "configuration",
+      "name": "Set YouTube research topic & API key",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [450, 300]
+    },
+    {
+      "parameters": {
+        "url": "={{ 'https://www.googleapis.com/youtube/v3/search?part=snippet&q=' + encodeURIComponent($json.searchQuery) + '&type=video&order=date&maxResults=10&key=' + $json.youtubeApiKey }}",
+        "options": {}
+      },
+      "id": "fetch",
+      "name": "Fetch YouTube API videos",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const config = $('Set YouTube research topic & API key').first().json;\nconst items = $input.first().json.items || [];\nreturn items.map((item) => {\n  const snippet = item.snippet || {};\n  const videoId = item.id?.videoId || '';\n  const title = snippet.title || 'Untitled Video';\n  const channel = snippet.channelTitle || 'YouTube Channel';\n  const publishedAt = snippet.publishedAt || new Date().toISOString();\n  const description = snippet.description || '';\n  const sourceUrl = videoId ? `https://www.youtube.com/watch?v=${videoId}` : 'https://www.youtube.com';\n  return {\n    json: {\n      workspaceId: config.workspaceId,\n      title: `YouTube Video: ${title}`,\n      sourceUrl,\n      publishedAt,\n      sourceName: 'YouTube Data API v3',\n      sourceType: 'media',\n      content: `YouTube video metadata for query '${config.searchQuery}'. Title: ${title}. Channel: ${channel}. Published: ${publishedAt}. Description snippet: ${description}. URL: ${sourceUrl}.` \n    }\n  };\n});"
+      },
+      "id": "normalize",
+      "name": "Normalize YouTube video metadata",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [920, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://wguazpvpelerzoqglyst.supabase.co/functions/v1/automation-ingest",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "x-automation-secret", "value": "REPLACE_WITH_YOUR_AUTOMATION_INGEST_SECRET" }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "jsonBody": "={{ { workspaceId: $json.workspaceId, title: $json.title, sourceUrl: $json.sourceUrl, publishedAt: $json.publishedAt, content: $json.content, sourceName: $json.sourceName, sourceType: $json.sourceType } }}"
+      },
+      "id": "ingest",
+      "name": "Save approved YouTube evidence",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1180, 300]
+    }
+  ],
+  "connections": {
+    "Every 12 hours": { "main": [[{ "node": "Set YouTube research topic & API key", "type": "main", "index": 0 }]] },
+    "Set YouTube research topic & API key": { "main": [[{ "node": "Fetch YouTube API videos", "type": "main", "index": 0 }]] },
+    "Fetch YouTube API videos": { "main": [[{ "node": "Normalize YouTube video metadata", "type": "main", "index": 0 }]] },
+    "Normalize YouTube video metadata": { "main": [[{ "node": "Save approved YouTube evidence", "type": "main", "index": 0 }]] }
+  },
+  "active": false,
+  "settings": { "executionOrder": "v1" }
+}

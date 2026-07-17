@@ -30,7 +30,16 @@
       "position": [680, 300]
     },
     {
-      "parameters": { "url": "={{ 'https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article/' + $json.project + '/all-access/user/' + $json.encodedTitle + '/daily/' + $json.start + '/' + $json.end }}", "options": {} },
+      "parameters": {
+        "url": "={{ 'https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article/' + $json.project + '/all-access/user/' + $json.encodedTitle + '/daily/' + $json.start + '/' + $json.end }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "User-Agent", "value": "TrendsAgent/1.0 (https://trendsagent.os; contact@trendsagent.os)" }
+          ]
+        },
+        "options": {}
+      },
       "id": "fetch",
       "name": "Fetch Wikimedia pageviews",
       "type": "n8n-nodes-base.httpRequest",
