@@ -1,0 +1,78 @@
+{
+  "name": "TrendsAgent — YouTube Video Signal Collector",
+  "nodes": [
+    {
+      "parameters": { "rule": { "interval": [{ "field": "hours", "hoursInterval": 12 }] } },
+      "id": "schedule",
+      "name": "Every 12 hours",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            { "id": "workspace", "name": "workspaceId", "value": "REPLACE_WITH_YOUR_WORKSPACE_ID", "type": "string" },
+            { "id": "query", "name": "searchQuery", "value": "REPLACE_WITH_YOUR_TOPIC_OR_KEYWORD", "type": "string" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "configuration",
+      "name": "Set YouTube research topic",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [450, 300]
+    },
+    {
+      "parameters": {
+        "url": "={{ 'https://www.youtube.com/feeds/videos.xml?search_query=' + encodeURIComponent($json.searchQuery) }}",
+        "options": { "response": { "response": { "responseFormat": "text" } } }
+      },
+      "id": "fetch",
+      "name": "Fetch YouTube RSS Feed",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const xml = $input.first().json.data || '';\nconst config = $('Set YouTube research topic').first().json;\nconst text = (str = '') => str.replace(/<[^>]*>/g, '').trim();\nconst matches = [...xml.matchAll(/<entry>([\\s\\S]*?)<\\/entry>/gi)].slice(0, 8);\nreturn matches.map((match) => {\n  const entry = match[1];\n  const title = text((entry.match(/<title[^>]*>([\\s\\S]*?)<\\/title>/i) || [])[1] || '');\n  const videoId = (entry.match(/<yt:videoId>([\\s\\S]*?)<\\/yt:videoId>/i) || [])[1] || '';\n  const channel = text((entry.match(/<author>[\\s\\S]*?<name>([\\s\\S]*?)<\\/name>[\\s\\S]*?<\\/author>/i) || [])[1] || 'YouTube Channel');\n  const published = (entry.match(/<published>([\\s\\S]*?)<\\/published>/i) || [])[1] || new Date().toISOString();\n  const sourceUrl = videoId ? `https://www.youtube.com/watch?v=${videoId}` : `https://www.youtube.com/results?search_query=${encodeURIComponent(config.searchQuery)}`;\n  return {\n    json: {\n      workspaceId: config.workspaceId,\n      title: `YouTube Video: ${title}`,\n      sourceUrl,\n      publishedAt: published,\n      sourceName: 'YouTube RSS Collector',\n      sourceType: 'media',\n      content: `Trending YouTube content related to query '${config.searchQuery}'. Video title: ${title}. Channel: ${channel}. Public video link: ${sourceUrl}.` \n    }\n  };\n});"
+      },
+      "id": "normalize",
+      "name": "Normalize YouTube video evidence",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [920, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://wguazpvpelerzoqglyst.supabase.co/functions/v1/automation-ingest",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "x-automation-secret", "value": "REPLACE_WITH_YOUR_AUTOMATION_INGEST_SECRET" }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "jsonBody": "={{ { workspaceId: $json.workspaceId, title: $json.title, sourceUrl: $json.sourceUrl, publishedAt: $json.publishedAt, content: $json.content, sourceName: $json.sourceName, sourceType: $json.sourceType } }}"
+      },
+      "id": "ingest",
+      "name": "Save approved YouTube evidence",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1180, 300]
+    }
+  ],
+  "connections": {
+    "Every 12 hours": { "main": [[{ "node": "Set YouTube research topic", "type": "main", "index": 0 }]] },
+    "Set YouTube research topic": { "main": [[{ "node": "Fetch YouTube RSS Feed", "type": "main", "index": 0 }]] },
+    "Fetch YouTube RSS Feed": { "main": [[{ "node": "Normalize YouTube video evidence", "type": "main", "index": 0 }]] },
+    "Normalize YouTube video evidence": { "main": [[{ "node": "Save approved YouTube evidence", "type": "main", "index": 0 }]] }
+  },
+  "active": false,
+  "settings": { "executionOrder": "v1" }
+}

@@ -1,7 +1,7 @@
 import { FormEvent, useEffect, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import type { User } from '@supabase/supabase-js'
-import { ArrowUpRight, Bell, BookOpen, Bot, ChevronRight, Compass, FileText, LayoutDashboard, LogOut, MessageSquare, Plus, Search, Settings, ShieldCheck, Sparkles, Target, TrendingUp, Users } from 'lucide-react'
+import { ArrowUpRight, Bell, BookOpen, Bot, ChevronRight, Compass, FileText, LayoutDashboard, LogOut, Menu, MessageSquare, Plus, Search, Settings, ShieldCheck, Sparkles, Target, TrendingUp, Users, X } from 'lucide-react'
 import './styles.css'
 import { createWorkspace, getWorkspaces, signIn, signOut, signUp, type Workspace } from './lib/auth'
 import { getBusinessProfile, saveBusinessProfile, type BusinessProfile } from './lib/business-profile'
@@ -57,7 +57,49 @@ function EvidenceLibrary({ workspace }: { workspace: Workspace }) {
   async function submit(event: FormEvent<HTMLFormElement>) { event.preventDefault(); setBusy(true); setMessage(''); const form = new FormData(event.currentTarget); try { await addSource(workspace, { title: String(form.get('title')), sourceUrl: String(form.get('source_url')), publishedAt: String(form.get('published_at')), content: String(form.get('content')) }); event.currentTarget.reset(); setMessage('Evidence saved. It can now be used by the AI gateway after deployment.'); refresh() } catch (error) { setMessage(error instanceof Error ? error.message : 'Could not save this source.') } finally { setBusy(false) } }
   async function remove(source: SourceDocument) { if (!window.confirm(`Delete “${source.title}”? This cannot be undone.`)) return; setBusy(true); setMessage(''); try { await deleteSource(workspace, source.id); setMessage('Evidence deleted. It is no longer available to AI requests.'); refresh() } catch (error) { setMessage(error instanceof Error ? error.message : 'Could not delete this source.') } finally { setBusy(false) } }
   async function copyWorkspaceId() { try { await navigator.clipboard.writeText(workspace.id); setCopyMessage('Copied. Paste this into n8n.'); } catch { setCopyMessage('Copy failed. Select the ID shown below instead.'); } }
-  return <main className="library-page"><header className="library-header"><div className="brand"><span className="brand-mark"><Sparkles size={17} /></span><span>Trends<span>Agent</span></span></div><div className="library-actions"><button className="outline-button" onClick={() => { window.location.hash = 'profile'; window.location.reload() }}>Edit business profile</button><button className="outline-button" onClick={() => { window.location.hash = ''; window.location.reload() }}>Back to dashboard</button></div></header><section className="library-content"><p className="eyebrow">PHASE 7 · EVIDENCE LIBRARY</p><h1>Approved sources for {workspace.name}</h1><p className="subhead">Add material you trust. The AI will use only saved text and cite it in factual responses.</p><aside className="automation-helper"><div><b>n8n workspace connection</b><p>Copy this exact workspace ID into the <code>workspaceId</code> field of your n8n Save approved trend evidence node.</p><code>{workspace.id}</code>{copyMessage && <small>{copyMessage}</small>}</div><button className="outline-button" onClick={() => void copyWorkspaceId()}>Copy workspace ID</button></aside><div className="library-grid"><section className="card source-form"><h2>Add a source</h2><form onSubmit={submit}><label>Source title<input name="title" required maxLength={240} placeholder="e.g. Q2 customer survey" /></label><label>Source URL <span className="optional">optional</span><input name="source_url" type="url" placeholder="https://…" /></label><label>Published date <span className="optional">optional</span><input name="published_at" type="date" /></label><label>Source text or notes<textarea name="content" required minLength={30} maxLength={25000} placeholder="Paste verified material here." /></label><button className="primary-button" disabled={busy}>{busy ? 'Saving…' : 'Save approved source'}<ChevronRight size={17} /></button></form>{message && <p className="library-message">{message}</p>}</section><section className="card source-list"><div className="card-heading"><div><p className="eyebrow">SAVED EVIDENCE</p><h2>{sources.length} source{sources.length === 1 ? '' : 's'} available</h2></div><BookOpen size={20} /></div>{sources.length === 0 ? <div className="empty-state"><BookOpen size={21} /><b>No evidence saved yet</b><p>Start with a customer survey, interview notes, or a trusted article.</p></div> : <div className="source-items">{sources.map((source) => <article key={source.id}><div><b>{source.title}</b><small>{source.source_url || 'Private workspace note'} · {source.published_at || 'Date not recorded'}</small><span>Approved manually</span></div><button className="delete-button" disabled={busy} onClick={() => void remove(source)}>Delete</button></article>)}</div>}</section></div></section></main>
+  return <main className="library-page"><header className="library-header"><div className="brand"><span className="brand-mark"><Sparkles size={17} /></span><span>Trends<span>Agent</span></span></div><div className="library-actions"><button className="outline-button" onClick={() => { window.location.hash = 'profile'; window.location.reload() }}>Edit profile</button><button className="outline-button" onClick={() => { window.location.hash = ''; window.location.reload() }}>Dashboard</button></div></header><section className="library-content"><p className="eyebrow">PHASE 7 · EVIDENCE LIBRARY</p><h1>Approved sources for {workspace.name}</h1><p className="subhead">Add material you trust. The AI will use only saved text and cite it in factual responses.</p><aside className="automation-helper"><div><b>n8n workspace connection</b><p>Copy this exact workspace ID into the <code>workspaceId</code> field of your n8n Save approved trend evidence node.</p><code>{workspace.id}</code>{copyMessage && <small>{copyMessage}</small>}</div><button className="outline-button" onClick={() => void copyWorkspaceId()}>Copy workspace ID</button></aside><div className="library-grid"><section className="card source-form"><h2>Add a source</h2><form onSubmit={submit}><label>Source title<input name="title" required maxLength={240} placeholder="e.g. Q2 customer survey" /></label><label>Source URL <span className="optional">optional</span><input name="source_url" type="url" placeholder="https://…" /></label><label>Published date <span className="optional">optional</span><input name="published_at" type="date" /></label><label>Source text or notes<textarea name="content" required minLength={30} maxLength={25000} placeholder="Paste verified material here." /></label><button className="primary-button" disabled={busy}>{busy ? 'Saving…' : 'Save approved source'}<ChevronRight size={17} /></button></form>{message && <p className="library-message">{message}</p>}</section><section className="card source-list"><div className="card-heading"><div><p className="eyebrow">SAVED EVIDENCE</p><h2>{sources.length} source{sources.length === 1 ? '' : 's'} available</h2></div><BookOpen size={20} /></div>{sources.length === 0 ? <div className="empty-state"><BookOpen size={21} /><b>No evidence saved yet</b><p>Start with a customer survey, interview notes, or a trusted article.</p></div> : <div className="source-items">{sources.map((source) => <article key={source.id}><div><b>{source.title}</b><small>{source.source_url || 'Private workspace note'} · {source.published_at || 'Date not recorded'}</small><span>Approved manually</span></div><button className="delete-button" disabled={busy} onClick={() => void remove(source)}>Delete</button></article>)}</div>}</section></div></section></main>
+}
+
+function FormattedBriefOutput({ content }: { content: string }) {
+  const lines = content.split('\n')
+  return (
+    <div className="brief-output-formatted">
+      {lines.map((line, idx) => {
+        const trimmed = line.trim()
+        if (!trimmed) return <div key={idx} className="brief-spacer" />
+        if (trimmed.startsWith('# ')) {
+          return <h2 key={idx} className="brief-h1">{renderInline(trimmed.replace(/^#\s+/, ''))}</h2>
+        }
+        if (trimmed.startsWith('## ')) {
+          return <h3 key={idx} className="brief-h2">{renderInline(trimmed.replace(/^##\s+/, ''))}</h3>
+        }
+        if (trimmed.startsWith('### ')) {
+          return <h4 key={idx} className="brief-h3">{renderInline(trimmed.replace(/^###\s+/, ''))}</h4>
+        }
+        if (/^[\-\*]\s+/.test(trimmed)) {
+          return <div key={idx} className="brief-list-item"><span className="brief-bullet">•</span><div>{renderInline(trimmed.replace(/^[\-\*]\s+/, ''))}</div></div>
+        }
+        if (/^\d+\.\s+/.test(trimmed)) {
+          const match = trimmed.match(/^(\d+)\.\s+(.*)/)
+          return <div key={idx} className="brief-list-item"><span className="brief-num">{match?.[1]}.</span><div>{renderInline(match?.[2] || '')}</div></div>
+        }
+        return <p key={idx} className="brief-p">{renderInline(trimmed)}</p>
+      })}
+    </div>
+  )
+}
+
+function renderInline(text: string) {
+  const parts = text.split(/(\*\*[^*]+\*\*|\[\d+\])/g)
+  return parts.map((part, i) => {
+    if (part.startsWith('**') && part.endsWith('**')) {
+      return <strong key={i}>{part.slice(2, -2)}</strong>
+    }
+    if (/^\[\d+\]$/.test(part)) {
+      return <span key={i} className="brief-cite">{part}</span>
+    }
+    return part
+  })
 }
 
 function EvidenceBriefPage({ workspace }: { workspace: Workspace }) {
@@ -70,7 +112,7 @@ function EvidenceBriefPage({ workspace }: { workspace: Workspace }) {
     catch (reason) { setError(reason instanceof Error ? reason.message : 'Could not generate an evidence brief.') }
     finally { setBusy(false) }
   }
-  return <main className="library-page"><header className="library-header"><div className="brand"><span className="brand-mark"><Sparkles size={17} /></span><span>Trends<span>Agent</span></span></div><div className="library-actions"><button className="outline-button" onClick={() => { window.location.hash = ''; window.location.reload() }}>Back to dashboard</button><button className="outline-button" onClick={() => { window.location.hash = 'sources'; window.location.reload() }}>Knowledge base</button></div></header><section className="brief-page"><p className="eyebrow">PHASE 8 · EVIDENCE BRIEF</p><h1>What your saved evidence can support</h1><p className="subhead">This creates an on-demand brief from saved sources only. It cites sources and labels uncertainty; it does not save recommendations automatically.</p><section className="card brief-intro"><div><b>Ready to analyze {workspace.name}</b><p>The AI receives the eight most recent approved sources. Your provider API key stays on the server.</p></div><button className="primary-button" disabled={busy} onClick={() => void runBrief()}><Bot size={17} />{busy ? 'Reading evidence…' : 'Generate evidence brief'}</button></section>{error && <p className="brief-error">{error}</p>}{brief && <section className="card brief-result"><div className="card-heading"><div><p className="eyebrow">GROUNDED SUMMARY</p><h2>Evidence brief</h2></div><span className="priority">ON-DEMAND</span></div><div className="brief-output">{brief.output}</div><div className="brief-sources"><b>Sources supplied to the AI</b>{brief.evidence.map((source, index) => <a key={source.id} href={source.sourceUrl ?? undefined} target="_blank" rel="noreferrer">[{index + 1}] {source.title}</a>)}</div><small className="brief-meta">Model: {brief.model} via {brief.provider}. Review the original sources before acting on an interpretation.</small></section>}</section></main>
+  return <main className="library-page"><header className="library-header"><div className="brand"><span className="brand-mark"><Sparkles size={17} /></span><span>Trends<span>Agent</span></span></div><div className="library-actions"><button className="outline-button" onClick={() => { window.location.hash = ''; window.location.reload() }}>Dashboard</button><button className="outline-button" onClick={() => { window.location.hash = 'sources'; window.location.reload() }}>Knowledge base</button></div></header><section className="brief-page"><p className="eyebrow">PHASE 8 · EVIDENCE BRIEF</p><h1>What your saved evidence can support</h1><p className="subhead">This creates an on-demand brief from saved sources only. It cites sources and labels uncertainty; it does not save recommendations automatically.</p><section className="card brief-intro"><div><b>Ready to analyze {workspace.name}</b><p>The AI receives the eight most recent approved sources. Your provider API key stays on the server.</p></div><button className="primary-button" disabled={busy} onClick={() => void runBrief()}><Bot size={17} />{busy ? 'Reading evidence…' : 'Generate evidence brief'}</button></section>{error && <p className="brief-error">{error}</p>}{brief && <section className="card brief-result"><div className="card-heading"><div><p className="eyebrow">GROUNDED SUMMARY</p><h2>Evidence brief</h2></div><span className="priority">ON-DEMAND</span></div><FormattedBriefOutput content={brief.output} /><div className="brief-sources"><b>Sources supplied to the AI</b>{brief.evidence.map((source, index) => <a key={source.id} href={source.sourceUrl ?? undefined} target="_blank" rel="noreferrer">[{index + 1}] {source.title}</a>)}</div><small className="brief-meta">Model: {brief.model} via {brief.provider}. Review the original sources before acting on an interpretation.</small></section>}</section></main>
 }
 
 function ProfileEditor({ workspace, profile, onSaved }: { workspace: Workspace; profile: BusinessProfile; onSaved: (profile: BusinessProfile) => void }) {
@@ -81,14 +123,117 @@ function ProfileEditor({ workspace, profile, onSaved }: { workspace: Workspace; 
 }
 
 function Dashboard({ user, workspace, profile }: { user: User; workspace: Workspace; profile: BusinessProfile }) {
-  const [activePage, setActivePage] = useState('Overview'); const [connection, setConnection] = useState({ ok: false, message: 'Checking secure backend…' }); const [data, setData] = useState<DashboardData | null>(null); const [saving, setSaving] = useState(false); const [saveMessage, setSaveMessage] = useState('')
+  const [activePage, setActivePage] = useState('Overview'); const [connection, setConnection] = useState({ ok: false, message: 'Checking secure backend…' }); const [data, setData] = useState<DashboardData | null>(null); const [saving, setSaving] = useState(false); const [saveMessage, setSaveMessage] = useState(''); const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const firstName = (user.user_metadata.full_name || user.email || 'there').split(' ')[0]
   function refresh() { void getDashboardData(workspace).then(setData).catch(() => setData(null)) }
   useEffect(() => { void checkSupabaseConnection().then(setConnection); refresh() }, [workspace.id])
   useEffect(() => { if (activePage === 'Trend intelligence') { window.location.hash = 'brief'; window.location.reload() } }, [activePage])
   async function saveRecommendation() { setSaving(true); try { await saveDraftRecommendation(workspace); setSaveMessage('Saved as a planning draft.'); refresh() } catch (error) { setSaveMessage(error instanceof Error ? error.message : 'Could not save the draft.') } finally { setSaving(false) } }
   const openSources = () => { window.location.hash = 'sources'; window.location.reload() }
-  return <main className="app-shell"><aside className="sidebar"><div className="brand"><span className="brand-mark"><Sparkles size={17} /></span><span>Trends<span>Agent</span></span></div><div className="workspace-switcher"><div className="workspace-avatar">{workspace.name.charAt(0).toUpperCase()}</div><div><b>{workspace.name}</b><small>{profile.industry || 'Business workspace'}</small></div><ChevronRight size={16} /></div><nav><p className="nav-label">WORKSPACE</p>{navItems.map(({ label, icon: Icon }) => <button key={label} className={activePage === label ? 'nav-item active' : 'nav-item'} onClick={() => label === 'Knowledge base' ? openSources() : setActivePage(label)}><Icon size={18} />{label}</button>)}</nav><div className="sidebar-bottom"><button className="nav-item"><Settings size={18} />Settings</button><button className="profile signout-profile" onClick={() => void signOut()}><div className="profile-avatar">{firstName.slice(0, 2).toUpperCase()}</div><div><b>{user.user_metadata.full_name || firstName}</b><small>Sign out</small></div><LogOut size={15} /></button></div></aside><section className="content"><header className="topbar"><div className="mobile-brand">Trends<span>Agent</span></div><div className="search"><Search size={17} /><input placeholder="Search your intelligence…" aria-label="Search" /></div><span className={connection.ok ? 'connection-status ready' : 'connection-status'} title={connection.message}><i />{connection.ok ? 'Backend ready' : 'Setup needed'}</span><button className="icon-button" aria-label="Notifications"><Bell size={19} /><i /></button><button className="avatar">{firstName.slice(0, 2).toUpperCase()}</button></header><div className="page-content"><div className="hero-row"><div><p className="eyebrow">{profile.business_name.toUpperCase()} · SECURE WORKSPACE</p><h1>Good morning, {firstName} <span>✦</span></h1><p className="subhead">Your saved context is ready. Add trusted evidence before using AI analysis.</p></div><button className="primary-button" onClick={openSources}><BookOpen size={18} />Add evidence</button></div><section className="metrics"><Metric icon={<Compass size={20} />} label="Business context" value="✓" suffix="" note={profile.target_audience ? 'Audience profile saved' : 'Profile needs audience'} tone="violet" /><Metric icon={<TrendingUp size={20} />} label="Verified trend signals" value={String(data?.trendCount ?? 0)} suffix="" note="Source analysis comes next" tone="blue" /><Metric icon={<Target size={20} />} label="Saved recommendations" value={String(data?.savedRecommendationCount ?? 0)} suffix="" note={`${data?.competitorCount ?? 0} competitors saved`} tone="orange" /></section><div className="dashboard-grid"><section className="card signal-card"><div className="card-heading"><div><p className="eyebrow">WHAT'S RISING</p><h2>Verified signals</h2></div><button className="text-button" onClick={openSources}>Add sources <ArrowUpRight size={15} /></button></div><div className="empty-state"><TrendingUp size={21} /><b>No verified signals yet</b><p>Open Knowledge base and save trusted evidence. The AI will only analyze what you approve.</p></div></section><section className="card focus-card"><p className="eyebrow">YOUR CONTEXT</p><h2>{profile.business_name}</h2><p>{profile.description || 'Add a business description later to sharpen future recommendations.'}</p><div className="evidence"><span><BookOpen size={16} /></span><div><b>Private business context</b><small>{profile.marketing_goals.length ? profile.marketing_goals.join(' · ') : 'No marketing goals selected yet'}</small></div></div><button className="dark-button" onClick={openSources}>Open evidence library <ChevronRight size={16} /></button></section></div><section className="card recommendation-card"><div className="card-heading"><div><p className="eyebrow">PLANNING DRAFT</p><h2>Launch a customer-story content series</h2></div><span className="priority">UNVERIFIED</span></div><p className="recommendation-copy">This is a planning idea, not a market claim. AI recommendations will only receive an evidence label after source collection and validation.</p><div className="recommendation-footer"><div className="sources"><span>{saveMessage || 'No evidence attached yet'}</span></div><button className="outline-button" disabled={saving} onClick={() => void saveRecommendation()}>{saving ? 'Saving…' : 'Save draft to plan'}</button></div></section></div></section></main>
+  return <main className="app-shell">
+    <aside className={mobileMenuOpen ? 'sidebar mobile-open' : 'sidebar'}>
+      <div className="brand">
+        <span className="brand-mark"><Sparkles size={17} /></span>
+        <span>Trends<span>Agent</span></span>
+        <button className="mobile-close-btn" onClick={() => setMobileMenuOpen(false)} aria-label="Close menu"><X size={20} /></button>
+      </div>
+      <div className="workspace-switcher">
+        <div className="workspace-avatar">{workspace.name.charAt(0).toUpperCase()}</div>
+        <div><b>{workspace.name}</b><small>{profile.industry || 'Business workspace'}</small></div>
+        <ChevronRight size={16} />
+      </div>
+      <nav>
+        <p className="nav-label">WORKSPACE</p>
+        {navItems.map(({ label, icon: Icon }) => (
+          <button
+            key={label}
+            className={activePage === label ? 'nav-item active' : 'nav-item'}
+            onClick={() => {
+              setMobileMenuOpen(false)
+              if (label === 'Knowledge base') openSources()
+              else setActivePage(label)
+            }}
+          >
+            <Icon size={18} />{label}
+          </button>
+        ))}
+      </nav>
+      <div className="sidebar-bottom">
+        <button className="nav-item" onClick={() => { setMobileMenuOpen(false); window.location.hash = 'profile'; window.location.reload() }}>
+          <Settings size={18} />Workspace settings
+        </button>
+        <button className="profile signout-profile" onClick={() => void signOut()}>
+          <div className="profile-avatar">{firstName.slice(0, 2).toUpperCase()}</div>
+          <div><b>{user.user_metadata.full_name || firstName}</b><small>Sign out</small></div>
+          <LogOut size={15} />
+        </button>
+      </div>
+    </aside>
+    <section className="content">
+      <header className="topbar">
+        <button className="mobile-menu-btn" onClick={() => setMobileMenuOpen(true)} aria-label="Open navigation menu">
+          <Menu size={22} />
+        </button>
+        <div className="mobile-brand">Trends<span>Agent</span></div>
+        <div className="search"><Search size={17} /><input placeholder="Search your intelligence…" aria-label="Search" /></div>
+        <span className={connection.ok ? 'connection-status ready' : 'connection-status'} title={connection.message}><i />{connection.ok ? 'Backend ready' : 'Setup needed'}</span>
+        <button className="icon-button" aria-label="Notifications"><Bell size={19} /><i /></button>
+        <button className="avatar" onClick={() => { window.location.hash = 'profile'; window.location.reload() }}>{firstName.slice(0, 2).toUpperCase()}</button>
+      </header>
+      <div className="page-content">
+        <div className="hero-row">
+          <div>
+            <p className="eyebrow">{profile.business_name.toUpperCase()} · SECURE WORKSPACE</p>
+            <h1>Good morning, {firstName} <span>✦</span></h1>
+            <p className="subhead">Your saved context is ready. Add trusted evidence before using AI analysis.</p>
+          </div>
+          <button className="primary-button" onClick={openSources}><BookOpen size={18} />Add evidence</button>
+        </div>
+        <section className="metrics">
+          <Metric icon={<Compass size={20} />} label="Business context" value="✓" suffix="" note={profile.target_audience ? 'Audience profile saved' : 'Profile needs audience'} tone="violet" />
+          <Metric icon={<TrendingUp size={20} />} label="Verified trend signals" value={String(data?.trendCount ?? 0)} suffix="" note="Source analysis comes next" tone="blue" />
+          <Metric icon={<Target size={20} />} label="Saved recommendations" value={String(data?.savedRecommendationCount ?? 0)} suffix="" note={`${data?.competitorCount ?? 0} competitors saved`} tone="orange" />
+        </section>
+        <div className="dashboard-grid">
+          <section className="card signal-card">
+            <div className="card-heading">
+              <div><p className="eyebrow">WHAT'S RISING</p><h2>Verified signals</h2></div>
+              <button className="text-button" onClick={openSources}>Add sources <ArrowUpRight size={15} /></button>
+            </div>
+            <div className="empty-state">
+              <TrendingUp size={21} />
+              <b>No verified signals yet</b>
+              <p>Open Knowledge base and save trusted evidence. The AI will only analyze what you approve.</p>
+            </div>
+          </section>
+          <section className="card focus-card">
+            <p className="eyebrow">YOUR CONTEXT</p>
+            <h2>{profile.business_name}</h2>
+            <p>{profile.description || 'Add a business description later to sharpen future recommendations.'}</p>
+            <div className="evidence">
+              <span><BookOpen size={16} /></span>
+              <div>
+                <b>Private business context</b>
+                <small>{profile.marketing_goals.length ? profile.marketing_goals.join(' · ') : 'No marketing goals selected yet'}</small>
+              </div>
+            </div>
+            <button className="dark-button" onClick={openSources}>Open evidence library <ChevronRight size={16} /></button>
+          </section>
+        </div>
+        <section className="card recommendation-card">
+          <div className="card-heading">
+            <div><p className="eyebrow">PLANNING DRAFT</p><h2>Launch a customer-story content series</h2></div>
+            <span className="priority">UNVERIFIED</span>
+          </div>
+          <p className="recommendation-copy">This is a planning idea, not a market claim. AI recommendations will only receive an evidence label after source collection and validation.</p>
+          <div className="recommendation-footer">
+            <div className="sources"><span>{saveMessage || 'No evidence attached yet'}</span></div>
+            <button className="outline-button" disabled={saving} onClick={() => void saveRecommendation()}>{saving ? 'Saving…' : 'Save draft to plan'}</button>
+          </div>
+        </section>
+      </div>
+    </section>
+  </main>
 }
 
 function Metric({ icon, label, value, suffix, note, tone }: { icon: React.ReactNode; label: string; value: string; suffix: string; note: string; tone: string }) { return <section className="metric"><span className={'metric-icon ' + tone}>{icon}</span><div><p>{label}</p><strong>{value}<small>{suffix}</small></strong><em>{note}</em></div></section> }

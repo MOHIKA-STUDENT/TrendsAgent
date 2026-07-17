@@ -9,7 +9,17 @@ export type EvidenceBrief = {
 
 export async function generateEvidenceBrief(workspaceId: string): Promise<EvidenceBrief> {
   if (!supabase) throw new Error('Supabase is not configured.')
+  
+  const { data: sessionData } = await supabase.auth.getSession()
+  const session = sessionData?.session
+  if (!session) {
+    throw new Error('Authentication is required. Please sign in to generate AI evidence briefs.')
+  }
+
   const { data, error } = await supabase.functions.invoke('ai-gateway', {
+    headers: {
+      Authorization: `Bearer ${session.access_token}`,
+    },
     body: {
       workspaceId,
       operation: 'brief',
