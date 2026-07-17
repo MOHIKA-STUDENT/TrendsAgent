@@ -219,6 +219,8 @@ function AIChatPage({ workspace, profile }: { workspace: Workspace; profile: Bus
         {error && <p className="brief-error">{error}</p>}
         <form onSubmit={handleSubmit} className="chat-form">
           <input
+            id="chat_prompt_input"
+            name="chat_prompt_input"
             value={input}
             onChange={(e) => setInput(e.target.value)}
             placeholder={`Ask about marketing campaigns, competitor moves, or trends for ${profile.business_name}...`}
@@ -332,7 +334,7 @@ function Dashboard({ user, workspace, profile, workspaces, activeIndex, onSelect
           <Menu size={22} />
         </button>
         <div className="mobile-brand">Trends<span>Agent</span></div>
-        <div className="search"><Search size={17} /><input placeholder="Search your intelligence…" aria-label="Search" /></div>
+        <div className="search"><Search size={17} /><input id="topbar_search_input" name="topbar_search_input" placeholder="Search your intelligence…" aria-label="Search" /></div>
         <span className={connection.ok ? 'connection-status ready' : 'connection-status'} title={connection.message}><i />{connection.ok ? 'Backend ready' : 'Setup needed'}</span>
         <button className="icon-button" aria-label="Notifications"><Bell size={19} /><i /></button>
         <button className="avatar" onClick={() => { window.location.hash = 'profile'; window.location.reload() }}>{firstName.slice(0, 2).toUpperCase()}</button>
