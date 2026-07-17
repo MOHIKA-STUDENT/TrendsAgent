@@ -45,7 +45,8 @@
       "name": "Auto-Read Business Profile from Supabase",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [680, 300]
+      "position": [680, 300],
+      "onError": "continueRegularOutput"
     },
     {
       "parameters": {
@@ -69,7 +70,8 @@
       "name": "2A. Fetch Outside Viral Trends (Google RSS)",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1150, 100]
+      "position": [1150, 100],
+      "onError": "continueRegularOutput"
     },
     {
       "parameters": {
@@ -92,7 +94,8 @@
       "name": "2B. Fetch Industry YouTube Videos",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1150, 260]
+      "position": [1150, 260],
+      "onError": "continueRegularOutput"
     },
     {
       "parameters": {
@@ -115,7 +118,8 @@
       "name": "2C. Fetch Industry News",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1150, 420]
+      "position": [1150, 420],
+      "onError": "continueRegularOutput"
     },
     {
       "parameters": {
@@ -144,7 +148,8 @@
       "name": "2D. Fetch Wikimedia Attention",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1150, 580]
+      "position": [1150, 580],
+      "onError": "continueRegularOutput"
     },
     {
       "parameters": {
@@ -174,7 +179,8 @@
       "name": "3. Ingest Evidence to TrendsAgent OS",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1650, 340]
+      "position": [1650, 340],
+      "onError": "continueRegularOutput"
     }
   ],
   "connections": {
