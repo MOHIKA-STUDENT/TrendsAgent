@@ -134,7 +134,7 @@
     },
     {
       "parameters": {
-        "url": "={{ 'https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article/en.wikipedia.org/all-access/user/' + $json.autoQuery.replace(/ /g, '_') + '/daily/2026060100/2026070100' }}",
+        "url": "={{ 'https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article/en.wikipedia.org/all-access/user/' + $json.autoQuery.replace(/ /g, '_') + '/daily/2025010100/2025020100' }}",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
