@@ -184,6 +184,12 @@ Deno.serve(async (request) => {
       return json({ error: 'No verified sources exist for this workspace yet. Add approved sources before requesting AI analysis.', code: 'NO_EVIDENCE' }, 422)
     }
 
+    const profileResult = await connection.queryObject<{ business_name: string; industry: string | null; description: string | null; target_audience: string | null; brand_voice: string | null; marketing_goals: string[] }>`select business_name, industry, description, target_audience, brand_voice, marketing_goals from public.business_profiles where workspace_id = ${body.workspaceId}::uuid limit 1`
+    const profile = profileResult.rows[0]
+
+    const competitorResult = await connection.queryObject<{ name: string; website_url: string | null }>`select name, website_url from public.competitors where workspace_id = ${body.workspaceId}::uuid limit 10`
+    const competitors = competitorResult.rows
+
     const providers = getProviderCandidates()
     if (providers.length === 0) {
       return json({
@@ -196,16 +202,27 @@ Deno.serve(async (request) => {
       .map((item, index) => `[${index + 1}] ${item.title}\nURL: ${item.source_url ?? 'Internal workspace source'}\nDate: ${item.published_at ? new Date(item.published_at).toISOString() : 'Unknown'}\n${item.content.slice(0, 3000)}`)
       .join('\n\n')
 
-    const system = `You are TrendsAgent OS, an enterprise content intelligence system.
+    const system = `You are TrendsAgent OS, an enterprise content intelligence operating system.
+You are generating evidence-backed marketing strategy and trend analysis specifically for the following business:
+- Business Name: ${profile?.business_name || 'My Business'}
+- Industry: ${profile?.industry || 'General Industry'}
+- Description: ${profile?.description || 'N/A'}
+- Target Audience: ${profile?.target_audience || 'N/A'}
+- Brand Voice: ${profile?.brand_voice || 'Professional'}
+- Marketing Goals: ${profile?.marketing_goals?.join(', ') || 'Growth'}
+- Tracked Competitors: ${competitors.map(c => c.name).join(', ') || 'None specified'}
+
 Follow strict evidence grounding guidelines:
-1. Grounding: Use ONLY the supplied evidence. Never invent facts, fake metrics, or guess missing context.
-2. Multi-Language Translation: If evidence topics or search keywords are in non-English scripts (e.g. Malayalam, Tamil, Telugu, Hindi, etc.), ALWAYS translate them into clear English in parentheses next to the original script (for example: "ലാമിന് യമാല് (Lamine Yamal)", "வெள்ளி (Silver)", "కരോనా వైరస్ (Coronavirus)").
-3. Citation: Cite every factual claim using [source-number] corresponding strictly to the verified evidence provided.
-4. Structure: Provide clean headings without raw markdown clutter. Include:
-   - Supported Observations (with English translations)
+1. Business Context Grounding: Tailor your insights specifically for ${profile?.business_name || 'this business'} in the ${profile?.industry || 'their'} industry. Connect market evidence directly to their business goals and competitors.
+2. Grounding: Use ONLY the supplied evidence. Never invent fake metrics or hallucinate.
+3. Multi-Language Translation: If evidence topics or search keywords are in non-English scripts (e.g. Malayalam, Tamil, Telugu, Hindi, etc.), ALWAYS translate them into clear English in parentheses next to the original script (for example: "ലാമിന് യമാല് (Lamine Yamal)", "வெள்ளி (Silver)", "కരോనా వైరస్ (Coronavirus)").
+4. Citation: Cite every factual claim using [source-number] corresponding strictly to the verified evidence provided.
+5. Structure: Provide clean headings without raw markdown clutter. Include:
+   - Supported Observations for ${profile?.business_name || 'the Business'} (with English translations)
+   - Industry & Competitor Intelligence (Analyzing ${profile?.industry || 'the market'})
+   - Actionable Content & Campaign Recommendations
    - Important Uncertainty & Context Limitations
-   - Strategic Marketing Question / Next Step
-5. Tone: Professional, analytical, and executive.`
+6. Tone: Professional, analytical, and executive.`
 
     await logRun(connection, body, user.id, 'started', evidence.length)
 
